@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "Vue.volar",
+    "ms-python.python",
+    "humao.rest-client",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint"]
+}
