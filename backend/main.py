@@ -14,6 +14,10 @@ import plotly.graph_objects as go
 import plotly.express as px
 import numpy as np
 import re
+from datetime import datetime
+from openpyxl import load_workbook
+from openpyxl.styles import Border, Side, Alignment
+from pydantic import BaseModel
 
 # 🔹 Umgebung laden (.env mit OPENAI_API_KEY)
 load_dotenv()
@@ -938,3 +942,133 @@ Gib NUR das JSON zurück, keine Erklärungen, keine Markdown-Codeblöcke.
     except Exception as e:
         print(f"[ERROR] Error generating plot: {e}")
         raise HTTPException(status_code=500, detail=f"Plot generation failed: {str(e)}")
+
+
+# ------------------------------
+# Session Logging - Excel Integration
+# ------------------------------
+class SessionLogEntry(BaseModel):
+    benutzer_name: str
+    klasse: str
+    schule: str
+    fach: str
+    thema: str
+    aufgabentyp: str
+    schwierigkeitsgrad: str
+    datei_name: str
+    datei_typ: str
+    anzahl_aufgaben: int
+    anzahl_teilaufgaben: int
+    visualisierungen_genutzt: int
+    animationen_genutzt: int
+    grafiken_genutzt: int
+    loesungen_angezeigt: int
+    feedback: str
+    sitzungsdauer_minuten: float
+    notizen: str
+
+
+EXCEL_PATH = r"C:\Users\admin\Desktop\Sonstiges\HMS_PROJEKT\clarity-coach\Clarity_Coach_Session_Log.xlsx"
+
+
+@app.post("/log-session")
+async def log_session(entry: SessionLogEntry):
+    """
+    Log a Clarity Coach session to Excel file
+    """
+    try:
+        print(f"[LOG] Starting session log...")
+        
+        # Check if Excel file exists
+        if not os.path.exists(EXCEL_PATH):
+            print(f"[ERROR] Excel file not found at: {EXCEL_PATH}")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Excel file not found. Please create it first using create_excel_template.py"
+            )
+        
+        # Load workbook
+        wb = load_workbook(EXCEL_PATH)
+        
+        # Get or create Session_Log sheet
+        if "Session_Log" not in wb.sheetnames:
+            print(f"[ERROR] Session_Log sheet not found")
+            raise HTTPException(
+                status_code=500,
+                detail="Session_Log sheet not found in Excel file"
+            )
+        
+        ws = wb["Session_Log"]
+        
+        # Find next row
+        next_row = ws.max_row + 1
+        
+        # Generate Session ID (format: YYYYMMDD-###)
+        today = datetime.now().strftime("%Y%m%d")
+        session_count = next_row - 1  # -1 for header
+        session_id = f"{today}-{session_count:03d}"
+        
+        # Get current date and time
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        current_time = datetime.now().strftime("%H:%M:%S")
+        
+        # Prepare data row
+        data_row = [
+            session_id,
+            current_date,
+            current_time,
+            entry.benutzer_name,
+            entry.klasse,
+            entry.schule,
+            entry.fach,
+            entry.thema,
+            entry.aufgabentyp,
+            entry.schwierigkeitsgrad,
+            entry.datei_name,
+            entry.datei_typ,
+            entry.anzahl_aufgaben,
+            entry.anzahl_teilaufgaben,
+            entry.visualisierungen_genutzt,
+            entry.animationen_genutzt,
+            entry.grafiken_genutzt,
+            entry.loesungen_angezeigt,
+            entry.feedback,
+            entry.sitzungsdauer_minuten,
+            entry.notizen
+        ]
+        
+        # Write data to row
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        for col_num, value in enumerate(data_row, 1):
+            cell = ws.cell(row=next_row, column=col_num)
+            cell.value = value
+            cell.border = border
+            cell.alignment = Alignment(horizontal='left', vertical='center')
+        
+        # Save workbook
+        wb.save(EXCEL_PATH)
+        wb.close()
+        
+        print(f"[LOG] Session logged successfully: {session_id}")
+        
+        return {
+            "success": True,
+            "session_id": session_id,
+            "message": "Session erfolgreich protokolliert",
+            "row": next_row
+        }
+    
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"[ERROR] Failed to log session: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to log session: {str(e)}"
+        )

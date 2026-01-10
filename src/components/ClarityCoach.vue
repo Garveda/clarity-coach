@@ -280,12 +280,25 @@
         </div>
       </div>
     </div>
+    
+    <!-- Session Logging Form -->
+    <SessionForm
+      ref="sessionFormRef"
+      :isOpen="showSessionForm"
+      :fileName="uploadedFileName"
+      :fileType="uploadedFileType"
+      :taskCount="response?.length || 0"
+      :subtaskCount="totalSubtasks"
+      @close="showSessionForm = false"
+      @submitted="handleSessionSubmitted"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, nextTick } from 'vue'
 import FileUpload from './FileUpload.vue'
+import SessionForm from './SessionForm.vue'
 import { toast } from 'vue-sonner'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
@@ -295,6 +308,18 @@ import Plotly from 'plotly.js-dist-min'
 const response = ref(null)
 const feedback = ref({})
 const loading = ref(false)
+
+// Session Form
+const showSessionForm = ref(false)
+const sessionFormRef = ref(null)
+const uploadedFileName = ref('')
+const uploadedFileType = ref('')
+const usageStats = ref({
+  visualizations: 0,
+  animations: 0,
+  graphs: 0,
+  solutions: 0
+})
 
 // Lösungen & Ladezustand je Teilaufgabe
 const solutions = ref([])        // [ [string|null, ...], ... ]
@@ -314,6 +339,27 @@ const graphLoading = ref([])          // [ [bool, ...], ... ]
 
 // Track current question index for each subtask
 const currentQuestionIndex = ref([])  // [ [number, ...], ... ]
+
+// ----------------------
+// Computed Properties
+// ----------------------
+const totalSubtasks = computed(() => {
+  if (!response.value || !Array.isArray(response.value)) return 0
+  return response.value.reduce((total, task) => {
+    return total + (task.subtasks?.length || 0)
+  }, 0)
+})
+
+// ----------------------
+// Session Logging Handlers
+// ----------------------
+function handleSessionSubmitted(result) {
+  console.log('Session logged:', result)
+  // Update form with current stats
+  if (sessionFormRef.value) {
+    sessionFormRef.value.updateUsageStats(usageStats.value)
+  }
+}
 
 // ----------------------
 // Hilfsfunktionen LaTeX
@@ -567,7 +613,7 @@ function formatLatex(text) {
 /* ----------------------------------------------------------------------------
  * Analyse beginnt (von FileUpload signalisiert)
  * --------------------------------------------------------------------------*/
-function handleAnalysisStarted() {
+function handleAnalysisStarted(fileInfo) {
   loading.value = true
   response.value = null
   solutions.value = []
@@ -579,6 +625,20 @@ function handleAnalysisStarted() {
   graphs.value = []
   graphLoading.value = []
   currentQuestionIndex.value = []
+  
+  // Store file info for session logging
+  if (fileInfo) {
+    uploadedFileName.value = fileInfo.fileName || ''
+    uploadedFileType.value = fileInfo.fileType || ''
+  }
+  
+  // Reset usage stats
+  usageStats.value = {
+    visualizations: 0,
+    animations: 0,
+    graphs: 0,
+    solutions: 0
+  }
 }
 
 /* ----------------------------------------------------------------------------
@@ -633,6 +693,9 @@ function handleAnalysisResult(data) {
   toast.success('Analysis complete', {
     description: 'Socratic questions have been successfully generated.'
   })
+  
+  // Show session form after analysis
+  showSessionForm.value = true
 }
 
 /* ----------------------------------------------------------------------------
@@ -706,6 +769,9 @@ async function toggleSolution(taskIndex, subIndex, task, subtask) {
 
     solutions.value[taskIndex][subIndex] =
       data.solution || 'No solution was returned.'
+    
+    // Track usage
+    usageStats.value.solutions++
   } catch (err) {
     toast.error('Error loading solution', {
       description: err.message
@@ -761,6 +827,9 @@ async function toggleVisualization(taskIndex, subIndex, task, subtask) {
 
     visualizations.value[taskIndex][subIndex] =
       data.visualization || 'No visualization was returned.'
+      
+    // Track usage
+    usageStats.value.visualizations++
       
     toast.success('Visualization loaded successfully!')
   } catch (err) {
@@ -822,6 +891,10 @@ async function toggleAnimation(taskIndex, subIndex, task, subtask) {
         data: data.animationData,
         playing: false
       }
+      
+      // Track usage
+      usageStats.value.animations++
+      
       toast.success('Animation erstellt!')
       
       // Auto-play after a short delay
@@ -1015,6 +1088,10 @@ async function toggleGraph(taskIndex, subIndex, task, subtask) {
         data: data.plotData,
         rendered: false
       }
+      
+      // Track usage
+      usageStats.value.graphs++
+      
       toast.success('Grafik erstellt!')
       
       // Render the plot after a short delay

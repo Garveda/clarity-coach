@@ -82,7 +82,15 @@ function validateAndUpload(file) {
     return
   }
 
-  emit('analysis-started')
+  // Get file extension
+  const fileExt = file.name.split('.').pop().toUpperCase()
+  
+  // Emit with file info
+  emit('analysis-started', {
+    fileName: file.name,
+    fileType: fileExt
+  })
+  
   uploadFile(file)
 }
 
