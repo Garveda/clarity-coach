@@ -355,6 +355,9 @@ const submitAssessment = async () => {
     
     console.log('[ASSESSMENT] Success response:', result);
     
+    // Reset submitting state immediately
+    isSubmitting.value = false;
+    
     toast.success('Bewertung erfolgreich gespeichert!', {
       description: `Session-ID: ${props.sessionId}`
     });
@@ -364,16 +367,13 @@ const submitAssessment = async () => {
     console.log('[ASSESSMENT] Emitting submitted event');
     emit('submitted', result);
     
-    console.log('[ASSESSMENT] Scheduling close in 500ms');
-    setTimeout(() => {
-      console.log('[ASSESSMENT] Emitting close event');
-      emit('close');
-    }, 500);
+    // Close immediately instead of waiting
+    console.log('[ASSESSMENT] Closing modal now');
+    emit('close');
     
   } catch (error) {
     console.error('Error submitting assessment:', error);
     toast.error(`Fehler beim Speichern: ${error.message}`);
-  } finally {
     isSubmitting.value = false;
   }
 };

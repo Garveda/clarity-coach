@@ -403,14 +403,15 @@ function handleSessionSubmitted(result) {
     sessionFormRef.value.updateUsageStats(usageStats.value)
   }
   
-  // Capture session ID and show assessment modal after a delay
+  // Capture session ID for later assessment
   if (result && result.session_id) {
     currentSessionId.value = result.session_id
+    console.log('[SESSION] Session ID captured:', result.session_id)
     
-    // Show assessment modal after session form closes (2 second delay)
-    setTimeout(() => {
-      showAssessmentModal.value = true
-    }, 2000)
+    // Don't auto-open assessment - let user interact with Clarity Coach first!
+    toast.info('Session gespeichert! Nutze jetzt die Clarity Coach Features.', {
+      description: 'Assessment kann später über Debug-Button geöffnet werden.'
+    })
   }
 }
 
