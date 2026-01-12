@@ -15,30 +15,31 @@ def create_session_log_template():
     ws.title = "Session_Log"
     
     # Define headers (Updated Phase 3.3 - Added approach checks and self-sufficiency)
+    # All 23 columns with proper German names
     headers = [
-        "Session_ID",
-        "Datum",
-        "Uhrzeit",
-        "Benutzer_Name",
-        "Klasse",
-        "Schule",
-        "Fach",
-        "Thema",
-        "Aufgabentyp",
-        "Schwierigkeitsgrad",
-        "Datei_Name",
-        "Datei_Typ",
-        "Anzahl_Aufgaben",
-        "Anzahl_Teilaufgaben",
-        "Visualisierungen_Genutzt",
-        "Animationen_Genutzt",
-        "Grafiken_Genutzt",
-        "Hints_Genutzt",  # Renamed from Lösungen_Angezeigt (Phase 3)
-        "Ansatzpruefungen_Genutzt",  # Phase 3.3: Approach checks
-        "Selbststaendigkeits_Score",  # Phase 3.3: Self-sufficiency (1-5)
-        "Feedback",
-        "Sitzungsdauer_Minuten",
-        "Notizen"
+        "Session-ID",                    # Column 1
+        "Datum",                         # Column 2
+        "Uhrzeit",                       # Column 3
+        "Benutzer Name",                 # Column 4
+        "Klasse",                        # Column 5
+        "Schule",                        # Column 6
+        "Fach",                          # Column 7
+        "Thema",                         # Column 8
+        "Aufgabentyp",                   # Column 9
+        "Schwierigkeitsgrad",            # Column 10
+        "Datei Name",                    # Column 11
+        "Datei Typ",                     # Column 12
+        "Anzahl Aufgaben",              # Column 13
+        "Anzahl Teilaufgaben",          # Column 14
+        "Visualisierungen Genutzt",     # Column 15
+        "Animationen Genutzt",          # Column 16
+        "Grafiken Genutzt",             # Column 17
+        "Hilfestellungen Genutzt",      # Column 18 (was Hints_Genutzt)
+        "Ansatzprüfungen Genutzt",      # Column 19 (was Ansatzpruefungen_Genutzt)
+        "Selbstständigkeits Score",     # Column 20 (was Selbststaendigkeits_Score)
+        "Feedback",                      # Column 21
+        "Sitzungsdauer (Minuten)",      # Column 22 (was Sitzungsdauer_Minuten)
+        "Notizen"                        # Column 23
     ]
     
     # Style definitions
@@ -60,31 +61,31 @@ def create_session_log_template():
         cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
         cell.border = border
     
-    # Set column widths (Updated Phase 3.3)
+    # Set column widths (Updated Phase 3.3 - All 23 columns)
     column_widths = {
-        'A': 12,  # Session_ID
+        'A': 12,  # Session-ID
         'B': 12,  # Datum
         'C': 10,  # Uhrzeit
-        'D': 18,  # Benutzer_Name
+        'D': 18,  # Benutzer Name
         'E': 10,  # Klasse
         'F': 20,  # Schule
         'G': 15,  # Fach
         'H': 25,  # Thema
         'I': 18,  # Aufgabentyp
         'J': 16,  # Schwierigkeitsgrad
-        'K': 20,  # Datei_Name
-        'L': 12,  # Datei_Typ
-        'M': 15,  # Anzahl_Aufgaben
-        'N': 18,  # Anzahl_Teilaufgaben
-        'O': 20,  # Visualisierungen_Genutzt
-        'P': 20,  # Animationen_Genutzt
-        'Q': 18,  # Grafiken_Genutzt
-        'R': 15,  # Hints_Genutzt
-        'S': 22,  # Ansatzpruefungen_Genutzt (Phase 3.3)
-        'T': 22,  # Selbststaendigkeits_Score (Phase 3.3)
+        'K': 20,  # Datei Name
+        'L': 12,  # Datei Typ
+        'M': 15,  # Anzahl Aufgaben
+        'N': 18,  # Anzahl Teilaufgaben
+        'O': 20,  # Visualisierungen Genutzt
+        'P': 20,  # Animationen Genutzt
+        'Q': 18,  # Grafiken Genutzt
+        'R': 20,  # Hilfestellungen Genutzt
+        'S': 22,  # Ansatzprüfungen Genutzt
+        'T': 22,  # Selbstständigkeits Score
         'U': 15,  # Feedback
-        'V': 20,  # Sitzungsdauer_Minuten
-        'W': 30,  # Notizen
+        'V': 22,  # Sitzungsdauer (Minuten) - Column 22
+        'W': 30,  # Notizen - Column 23
     }
     
     for col, width in column_widths.items():
@@ -94,30 +95,31 @@ def create_session_log_template():
     ws.row_dimensions[1].height = 30
     
     # Add example row (optional, can be removed) - Updated Phase 3.3
+    # All 23 columns of example data
     example_data = [
-        "001",
-        datetime.now().strftime("%Y-%m-%d"),
-        datetime.now().strftime("%H:%M:%S"),
-        "Max Mustermann",
-        "10a",
-        "Gymnasium Beispiel",
-        "Mathematik",
-        "Quadratische Gleichungen",
-        "Gleichungen lösen",
-        "Mittel",
-        "aufgabe_quadratisch.pdf",
-        "PDF",
-        "1",
-        "3",
-        "2",  # Visualisierungen
-        "1",  # Animationen
-        "0",  # Grafiken
-        "2",  # Hints (Progressive hints used)
-        "1",  # Ansatzpruefungen (Approach checks)
-        "4",  # Selbststaendigkeits_Score (1-5, 5=independent)
-        "Helpful",
-        "15.5",
-        "Gute Fortschritte beim Verständnis"
+        "001",                                    # Session-ID
+        datetime.now().strftime("%d.%m.%Y"),      # Datum (DD.MM.YYYY)
+        datetime.now().strftime("%H:%M:%S"),      # Uhrzeit
+        "Max Mustermann",                         # Benutzer Name
+        "10a",                                    # Klasse
+        "Gymnasium Beispiel",                     # Schule
+        "Mathematik",                             # Fach
+        "Quadratische Gleichungen",               # Thema
+        "Gleichungen lösen",                      # Aufgabentyp
+        "Mittel",                                 # Schwierigkeitsgrad
+        "aufgabe_quadratisch.pdf",                # Datei Name
+        "PDF",                                    # Datei Typ
+        "1",                                      # Anzahl Aufgaben
+        "3",                                      # Anzahl Teilaufgaben
+        "2",                                      # Visualisierungen Genutzt
+        "1",                                      # Animationen Genutzt
+        "0",                                      # Grafiken Genutzt
+        "2",                                      # Hilfestellungen Genutzt
+        "1",                                      # Ansatzprüfungen Genutzt
+        "4",                                      # Selbstständigkeits Score (1-5, 5=independent)
+        "Helpful",                                # Feedback
+        "15.5",                                   # Sitzungsdauer (Minuten) - Column 22
+        "Gute Fortschritte beim Verständnis"      # Notizen - Column 23
     ]
     
     for col_num, value in enumerate(example_data, 1):

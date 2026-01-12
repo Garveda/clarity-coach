@@ -14,17 +14,43 @@
       </div>
 
       <form @submit.prevent="submitAssessment" class="assessment-form">
-        <!-- Assessor Name -->
+        <!-- Assessor & Student Info -->
         <div class="form-section">
-          <div class="form-group">
-            <label for="assessor">Ihr Name (Tutor/Evaluator)</label>
-            <input
-              type="text"
-              id="assessor"
-              v-model="assessorName"
-              placeholder="z.B. Prof. Müller"
-              class="text-input"
-            />
+          <h3 class="section-title">👤 Personeninformationen</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="assessor">Ihr Name (Tutor/Evaluator)</label>
+              <input
+                type="text"
+                id="assessor"
+                v-model="assessorName"
+                placeholder="z.B. Prof. Müller"
+                class="text-input"
+              />
+            </div>
+            <div class="form-group">
+              <label for="student-id">Student-ID <span class="required">*</span></label>
+              <input
+                type="text"
+                id="student-id"
+                v-model="studentId"
+                required
+                placeholder="z.B. S001"
+                class="text-input"
+              />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="grade">Klasse/Stufe</label>
+              <input
+                type="text"
+                id="grade"
+                v-model="grade"
+                placeholder="z.B. 10a oder 11"
+                class="text-input"
+              />
+            </div>
           </div>
         </div>
 
@@ -143,17 +169,117 @@
           <h3 class="section-title">📈 Automatisch erfasste Metriken</h3>
           <div class="metrics-grid">
             <div class="metric-item">
+              <span class="metric-label">Session-ID:</span>
+              <span class="metric-value">{{ sessionId || 'N/A' }}</span>
+            </div>
+            <div class="metric-item">
               <span class="metric-label">Fragenzyklen:</span>
               <span class="metric-value">{{ questionLoops || 0 }}</span>
             </div>
             <div class="metric-item">
-              <span class="metric-label">Session-ID:</span>
-              <span class="metric-value">{{ sessionId || 'N/A' }}</span>
+              <span class="metric-label">Visuelle Hilfen:</span>
+              <span class="metric-value">{{ visualHintsUsed || 0 }}</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Hilfestellungen gesamt:</span>
+              <span class="metric-value">{{ totalHintsUsed || 0 }}</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Ansatzprüfungen:</span>
+              <span class="metric-value">{{ approachChecksUsed || 0 }}</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Selbstständigkeit:</span>
+              <span class="metric-value">
+                <span v-for="star in 5" :key="star" :class="['score-star', star <= (selfSufficiencyScore || 5) ? 'filled' : 'empty']">★</span>
+                ({{ selfSufficiencyScore || 5 }}/5)
+              </span>
             </div>
           </div>
           <p class="metrics-note">
             Diese Werte wurden automatisch während der Sitzung erfasst.
           </p>
+        </div>
+
+        <!-- Dimension 2: Controllability -->
+        <div class="form-section">
+          <h3 class="section-title">🎛️ Kontrollierbarkeit</h3>
+          <div class="form-group">
+            <label for="tutor-interventions">Tutor-Interventionen (Anzahl)</label>
+            <input
+              type="number"
+              id="tutor-interventions"
+              v-model.number="tutorInterventions"
+              min="0"
+              placeholder="0"
+              class="text-input"
+            />
+            <p class="field-hint">Anzahl der manuellen Eingriffe durch den Tutor während der Sitzung</p>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                v-model="studentOverride"
+                class="checkbox-input"
+              />
+              <span>Schüler hat KI-Vorschlag abgelehnt/überschrieben</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Dimension 3: Fairness - Additional Check -->
+        <div class="form-section">
+          <h3 class="section-title">⚖️ Fairness - Zusätzliche Prüfungen</h3>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                v-model="linguisticNeutralityCheck"
+                class="checkbox-input"
+              />
+              <span>Sprachliche Neutralität gewährleistet (keine diskriminierende Sprache)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Dimension 4: Psychological Safety - Additional Checks -->
+        <div class="form-section">
+          <h3 class="section-title">🛡️ Psychologische Sicherheit - Zusätzliche Prüfungen</h3>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                v-model="evaluativeLanguageCheck"
+                class="checkbox-input"
+              />
+              <span>Nicht-bewertende Sprache verwendet (keine negativen Urteile)</span>
+            </label>
+          </div>
+          <div class="form-group">
+            <label for="feedback-safety">Schüler fühlte sich sicher, Feedback zu geben</label>
+            <select id="feedback-safety" v-model="studentFeedbackSafety" class="select-input">
+              <option value="">Nicht angegeben</option>
+              <option value="yes">Ja</option>
+              <option value="no">Nein</option>
+              <option value="unclear">Unklar</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Dimension 1: Transparency - Prompt Strategy -->
+        <div class="form-section">
+          <h3 class="section-title">🔍 Transparenz - Prompt-Strategie</h3>
+          <div class="form-group">
+            <label for="prompt-strategy">Prompt-Strategie (optional)</label>
+            <textarea
+              id="prompt-strategy"
+              v-model="promptStrategy"
+              rows="3"
+              placeholder="Dokumentieren Sie die verwendete Prompt-Strategie oder besondere Ansätze..."
+              class="textarea-input"
+            ></textarea>
+          </div>
         </div>
 
         <!-- Free Text Section -->
@@ -185,7 +311,7 @@
 
         <!-- Validation Messages -->
         <div v-if="showValidationError" class="validation-error">
-          ⚠️ Bitte füllen Sie alle Pflichtfelder (Bewertungen 1-5) aus.
+          ⚠️ Bitte füllen Sie alle Pflichtfelder aus (Bewertungen 1-5 und Student-ID).
         </div>
 
         <!-- Action Buttons -->
@@ -196,6 +322,15 @@
             class="skip-btn"
           >
             Überspringen
+          </button>
+          <button
+            type="button"
+            @click="exportAssessmentLog"
+            :disabled="isExporting"
+            class="export-btn"
+          >
+            <span v-if="!isExporting">📥 Assessment Log exportieren</span>
+            <span v-else>Wird exportiert...</span>
           </button>
           <button
             type="submit"
@@ -227,6 +362,23 @@ const props = defineProps({
   questionLoops: {
     type: Number,
     default: 0
+  },
+  // Auto-populated session metrics
+  visualHintsUsed: {
+    type: Number,
+    default: 0
+  },
+  totalHintsUsed: {
+    type: Number,
+    default: 0
+  },
+  approachChecksUsed: {
+    type: Number,
+    default: 0
+  },
+  selfSufficiencyScore: {
+    type: Number,
+    default: 5
   }
 });
 
@@ -234,6 +386,8 @@ const emit = defineEmits(['close', 'submitted']);
 
 // Form data
 const assessorName = ref('');
+const studentId = ref('');
+const grade = ref('');
 const ratings = ref({
   aiQuality: null,
   engagement: null,
@@ -241,11 +395,18 @@ const ratings = ref({
   efficiency: null
 });
 const learnerType = ref('');
+const tutorInterventions = ref(0);
+const studentOverride = ref(false);
+const linguisticNeutralityCheck = ref(false);
+const evaluativeLanguageCheck = ref(false);
+const studentFeedbackSafety = ref(''); // 'yes', 'no', 'unclear'
+const promptStrategy = ref('');
 const remarks = ref('');
 const furtherConsiderations = ref('');
 
 // UI state
 const isSubmitting = ref(false);
+const isExporting = ref(false);
 const showValidationError = ref(false);
 
 // Validation
@@ -253,7 +414,8 @@ const isValid = computed(() => {
   return ratings.value.aiQuality !== null &&
          ratings.value.engagement !== null &&
          ratings.value.understanding !== null &&
-         ratings.value.efficiency !== null;
+         ratings.value.efficiency !== null &&
+         studentId.value.trim() !== '';
 });
 
 // Tooltips
@@ -315,6 +477,36 @@ const skipAssessment = () => {
   }
 };
 
+const exportAssessmentLog = async () => {
+  isExporting.value = true;
+  
+  try {
+    const response = await fetch('http://127.0.0.1:8000/export-assessment-log', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Fehler beim Exportieren');
+    }
+    
+    const result = await response.json();
+    
+    console.log('[EXPORT] Success response:', result);
+    
+    toast.success('Assessment Log erfolgreich exportiert!', {
+      description: `Datei: ${result.filename} (${result.row_count} Bewertungen)`
+    });
+    
+  } catch (error) {
+    console.error('Error exporting assessment log:', error);
+    toast.error(`Fehler beim Exportieren: ${error.message}`);
+  } finally {
+    isExporting.value = false;
+  }
+};
+
 const submitAssessment = async () => {
   showValidationError.value = false;
   
@@ -329,12 +521,25 @@ const submitAssessment = async () => {
   const assessmentData = {
     sessionId: props.sessionId,
     assessorName: assessorName.value || 'Nicht angegeben',
+    studentId: studentId.value.trim(),
+    grade: grade.value.trim() || '',
     aiQuestionQuality: ratings.value.aiQuality,
-    engagementLevel: ratings.value.engagement,
-    understandingProgress: ratings.value.understanding,
-    efficiencyScore: ratings.value.efficiency,
+    promptStrategy: promptStrategy.value.trim() || '',
+    tutorInterventions: tutorInterventions.value || 0,
+    studentOverride: studentOverride.value,
     learnerTypeIndicator: learnerType.value || 'Nicht angegeben',
+    understandingProgress: ratings.value.understanding,
+    linguisticNeutralityCheck: linguisticNeutralityCheck.value,
+    engagementLevel: ratings.value.engagement,
+    evaluativeLanguageCheck: evaluativeLanguageCheck.value,
+    studentFeedbackSafety: studentFeedbackSafety.value || '',
     questionLoops: props.questionLoops || 0,
+    efficiencyScore: ratings.value.efficiency,
+    // Auto-populated metrics
+    visualHintsUsed: props.visualHintsUsed || 0,
+    totalHintsUsed: props.totalHintsUsed || 0,
+    approachChecksUsed: props.approachChecksUsed || 0,
+    selfSufficiencyScore: props.selfSufficiencyScore || 5,
     remarks: remarks.value || '',
     furtherConsiderations: furtherConsiderations.value || ''
   };
@@ -380,6 +585,8 @@ const submitAssessment = async () => {
 
 const resetForm = () => {
   assessorName.value = '';
+  studentId.value = '';
+  grade.value = '';
   ratings.value = {
     aiQuality: null,
     engagement: null,
@@ -387,6 +594,12 @@ const resetForm = () => {
     efficiency: null
   };
   learnerType.value = '';
+  tutorInterventions.value = 0;
+  studentOverride.value = false;
+  linguisticNeutralityCheck.value = false;
+  evaluativeLanguageCheck.value = false;
+  studentFeedbackSafety.value = '';
+  promptStrategy.value = '';
   remarks.value = '';
   furtherConsiderations.value = '';
   showValidationError.value = false;
@@ -519,6 +732,40 @@ watch(() => props.isOpen, (newVal) => {
   font-size: 0.95rem;
 }
 
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-row .form-group {
+  grid-column: span 1;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+  color: #2d3748;
+  font-size: 0.95rem;
+}
+
+.checkbox-input {
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: pointer;
+  accent-color: #2c5f8d;
+}
+
+.field-hint {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+  font-style: italic;
+}
+
 .text-input,
 .select-input,
 .textarea-input {
@@ -640,6 +887,21 @@ watch(() => props.isOpen, (newVal) => {
   color: #1e3a5f;
   font-size: 1rem;
   font-family: 'Courier New', monospace;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.score-star {
+  font-size: 1.2rem;
+}
+
+.score-star.filled {
+  color: #fbbf24;
+}
+
+.score-star.empty {
+  color: rgba(0, 0, 0, 0.2);
 }
 
 .metrics-note {
@@ -707,6 +969,29 @@ watch(() => props.isOpen, (newVal) => {
   cursor: not-allowed;
 }
 
+.export-btn {
+  padding: 0.875rem 1.75rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: linear-gradient(to right, #10b981, #059669);
+  color: white;
+  border: 1px solid #059669;
+}
+
+.export-btn:hover:not(:disabled) {
+  background: linear-gradient(to right, #059669, #047857);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  transform: translateY(-2px);
+}
+
+.export-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .assessment-container {
@@ -736,6 +1021,10 @@ watch(() => props.isOpen, (newVal) => {
   .skip-btn,
   .submit-btn {
     width: 100%;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -37,9 +37,11 @@
     <!-- Hinweisbereich -->
     <div
       v-if="!response && !loading"
-      class="mt-8 text-center text-gray-500"
+      class="upload-hint-container"
     >
-      Upload an image or PDF containing mathematical problems to begin analysis.
+      <p class="upload-hint-text">
+        Upload an image or PDF containing mathematical problems to begin analysis.
+      </p>
     </div>
 
     <!-- Ladeanzeige -->
@@ -541,6 +543,10 @@
       :isOpen="showAssessmentModal"
       :sessionId="currentSessionId"
       :questionLoops="totalQuestionLoops"
+      :visualHintsUsed="usageStats.smartVisuals || 0"
+      :totalHintsUsed="usageStats.hints || 0"
+      :approachChecksUsed="usageStats.approachChecks || 0"
+      :selfSufficiencyScore="calculatedSelfSufficiencyScore"
       @close="showAssessmentModal = false"
       @submitted="handleAssessmentSubmitted"
     />
@@ -575,11 +581,17 @@ const usageStats = ref({
   visualizations: 0,
   animations: 0,
   graphs: 0,
-  hints: 0,           // Replaced solutions
-  hintLevels: [],     // Track which levels were used [1,1,2,3,...]
-  smartVisuals: 0,    // Unified visual count (Phase 2)
-  visualTypes: [],    // Track what visual types were used ['graph', 'animation', ...]
-  approachChecks: 0   // Phase 3.3: Track approach check usage
+  hints: 0,                    // Total hints used
+  hintLevels: [],              // Track which levels were used [1,1,2,3,...]
+  socraticHintsUsed: 0,        // Level 1 hints count
+  directiveHintsUsed: 0,       // Level 2 hints count
+  specificHintsUsed: 0,        // Level 3 hints count
+  smartVisuals: 0,            // Unified visual count (Phase 2)
+  visualTypes: [],             // Track what visual types were used ['graph', 'animation', ...]
+  approachChecks: 0,           // Phase 3.3: Track approach check usage
+  approachCheckResults: [],    // Track results: [true, false, true, ...]
+  tutorInterventions: 0,       // Manual tutor interventions
+  studentOverrides: 0          // Student rejected AI suggestions
 })
 
 // Progressive Hints System (Replaces Solution)
@@ -641,6 +653,16 @@ const totalQuestionLoops = computed(() => {
     })
   })
   return total
+})
+
+// Calculate self-sufficiency score for assessment modal
+const calculatedSelfSufficiencyScore = computed(() => {
+  const totalHelp = (usageStats.value.hints || 0) + (usageStats.value.approachChecks || 0)
+  if (totalHelp === 0) return 5      // Solved independently
+  if (totalHelp <= 2) return 4       // Minimal help
+  if (totalHelp <= 5) return 3       // Moderate help
+  if (totalHelp <= 8) return 2       // Significant help
+  return 1                           // Heavy support needed
 })
 
 // ----------------------
@@ -961,9 +983,15 @@ function handleAnalysisStarted(fileInfo) {
     graphs: 0,
     hints: 0,
     hintLevels: [],
+    socraticHintsUsed: 0,
+    directiveHintsUsed: 0,
+    specificHintsUsed: 0,
     smartVisuals: 0,
     visualTypes: [],
-    approachChecks: 0  // Phase 3.3
+    approachChecks: 0,
+    approachCheckResults: [],
+    tutorInterventions: 0,
+    studentOverrides: 0
   }
   
   // Reset question loop tracking
@@ -1178,6 +1206,15 @@ async function requestHint(taskIndex, subIndex, task, subtask) {
     usageStats.value.hints++
     usageStats.value.hintLevels.push(nextLevel)
     
+    // Track separate hint level counts
+    if (nextLevel === 1) {
+      usageStats.value.socraticHintsUsed++
+    } else if (nextLevel === 2) {
+      usageStats.value.directiveHintsUsed++
+    } else if (nextLevel === 3) {
+      usageStats.value.specificHintsUsed++
+    }
+    
     // Show toast based on level
     const levelNames = {
       1: 'Sokratische Frage',
@@ -1278,6 +1315,8 @@ async function checkApproach(taskIndex, subIndex, task, subtask) {
     
     // Track usage
     usageStats.value.approachChecks = (usageStats.value.approachChecks || 0) + 1
+    // Track approach check result (true = on right track, false = needs improvement)
+    usageStats.value.approachCheckResults.push(data.isOnRightTrack || false)
     
     // Show toast based on result
     if (data.isOnRightTrack) {
@@ -2202,6 +2241,22 @@ body {
 }
 
 /* Loading Indicator */
+.upload-hint-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  padding: 2rem;
+  text-align: center;
+}
+
+.upload-hint-text {
+  color: #64748b;
+  font-size: 1.1rem;
+  margin: 0;
+  max-width: 600px;
+}
+
 .loading-indicator {
   display: flex;
   align-items: center;

@@ -14,7 +14,7 @@ import numpy as np
 import re
 # Note: Plotly removed in Phase 2.2 - using Chart.js in frontend (lighter weight)
 from datetime import datetime
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Border, Side, Alignment
 from pydantic import BaseModel
 
@@ -1231,6 +1231,40 @@ async def log_session(entry: SessionLogEntry):
     try:
         print(f"[LOG] Starting session log...")
         
+        # Validate required fields
+        if not entry.benutzer_name or not entry.benutzer_name.strip():
+            raise HTTPException(status_code=400, detail="benutzer_name is required")
+        if not entry.klasse or not entry.klasse.strip():
+            raise HTTPException(status_code=400, detail="klasse is required")
+        if not entry.schule or not entry.schule.strip():
+            raise HTTPException(status_code=400, detail="schule is required")
+        if not entry.fach or not entry.fach.strip():
+            raise HTTPException(status_code=400, detail="fach is required")
+        if not entry.thema or not entry.thema.strip():
+            raise HTTPException(status_code=400, detail="thema is required")
+        if not entry.schwierigkeitsgrad or not entry.schwierigkeitsgrad.strip():
+            raise HTTPException(status_code=400, detail="schwierigkeitsgrad is required")
+        
+        # Validate numeric fields
+        if entry.anzahl_aufgaben < 0:
+            raise HTTPException(status_code=400, detail="anzahl_aufgaben must be non-negative")
+        if entry.anzahl_teilaufgaben < 0:
+            raise HTTPException(status_code=400, detail="anzahl_teilaufgaben must be non-negative")
+        if entry.visualisierungen_genutzt < 0:
+            raise HTTPException(status_code=400, detail="visualisierungen_genutzt must be non-negative")
+        if entry.animationen_genutzt < 0:
+            raise HTTPException(status_code=400, detail="animationen_genutzt must be non-negative")
+        if entry.grafiken_genutzt < 0:
+            raise HTTPException(status_code=400, detail="grafiken_genutzt must be non-negative")
+        if entry.hints_genutzt < 0:
+            raise HTTPException(status_code=400, detail="hints_genutzt must be non-negative")
+        if entry.ansatzpruefungen_genutzt < 0:
+            raise HTTPException(status_code=400, detail="ansatzpruefungen_genutzt must be non-negative")
+        if entry.selbststaendigkeits_score < 1 or entry.selbststaendigkeits_score > 5:
+            raise HTTPException(status_code=400, detail="selbststaendigkeits_score must be between 1 and 5")
+        if entry.sitzungsdauer_minuten < 0:
+            raise HTTPException(status_code=400, detail="sitzungsdauer_minuten must be non-negative")
+        
         # Check if Excel file exists
         if not os.path.exists(EXCEL_PATH):
             print(f"[ERROR] Excel file not found at: {EXCEL_PATH}")
@@ -1252,6 +1286,47 @@ async def log_session(entry: SessionLogEntry):
         
         ws = wb["Session_Log"]
         
+        # Update headers if they're old format (with underscores)
+        # This ensures existing files get updated headers without losing data
+        if ws.max_row > 0:
+            header_row = 1
+            old_headers = [
+                "Session_ID", "Benutzer_Name", "Datei_Name", "Datei_Typ",
+                "Anzahl_Aufgaben", "Anzahl_Teilaufgaben", "Visualisierungen_Genutzt",
+                "Animationen_Genutzt", "Grafiken_Genutzt", "Hints_Genutzt",
+                "Ansatzpruefungen_Genutzt", "Selbststaendigkeits_Score",
+                "Sitzungsdauer_Minuten"
+            ]
+            new_headers = [
+                "Session-ID", "Benutzer Name", "Datei Name", "Datei Typ",
+                "Anzahl Aufgaben", "Anzahl Teilaufgaben", "Visualisierungen Genutzt",
+                "Animationen Genutzt", "Grafiken Genutzt", "Hilfestellungen Genutzt",
+                "Ansatzprüfungen Genutzt", "Selbstständigkeits Score",
+                "Sitzungsdauer (Minuten)"
+            ]
+            
+            # Check if headers need updating
+            needs_update = False
+            for col in range(1, min(ws.max_column + 1, 24)):
+                cell_value = ws.cell(row=header_row, column=col).value
+                if cell_value and any(old in str(cell_value) for old in old_headers):
+                    needs_update = True
+                    break
+            
+            if needs_update:
+                # Update headers to proper German names
+                proper_headers = [
+                    "Session-ID", "Datum", "Uhrzeit", "Benutzer Name", "Klasse", "Schule",
+                    "Fach", "Thema", "Aufgabentyp", "Schwierigkeitsgrad", "Datei Name",
+                    "Datei Typ", "Anzahl Aufgaben", "Anzahl Teilaufgaben",
+                    "Visualisierungen Genutzt", "Animationen Genutzt", "Grafiken Genutzt",
+                    "Hilfestellungen Genutzt", "Ansatzprüfungen Genutzt",
+                    "Selbstständigkeits Score", "Feedback", "Sitzungsdauer (Minuten)", "Notizen"
+                ]
+                for col, header in enumerate(proper_headers, 1):
+                    ws.cell(row=header_row, column=col).value = header
+                print("[LOG] Updated Session_Log headers to proper German names")
+        
         # Find next row
         next_row = ws.max_row + 1
         
@@ -1260,8 +1335,8 @@ async def log_session(entry: SessionLogEntry):
         session_count = next_row - 1  # -1 for header
         session_id = f"{today}-{session_count:03d}"
         
-        # Get current date and time
-        current_date = datetime.now().strftime("%Y-%m-%d")
+        # Get current date and time (DD.MM.YYYY format)
+        current_date = datetime.now().strftime("%d.%m.%Y")
         current_time = datetime.now().strftime("%H:%M:%S")
         
         # Prepare data row
@@ -1328,6 +1403,51 @@ async def log_session(entry: SessionLogEntry):
         )
 
 # ------------------------------
+# Get Assessment Data for Dashboard
+# ------------------------------
+@app.get("/get-assessments")
+async def get_assessments():
+    """
+    Get all assessment data for dashboard analytics.
+    Returns assessment data from Assessment_Log sheet.
+    """
+    try:
+        if not os.path.exists(EXCEL_PATH):
+            return {"assessments": []}
+        
+        wb = load_workbook(EXCEL_PATH)
+        
+        if "Assessment_Log" not in wb.sheetnames:
+            wb.close()
+            return {"assessments": []}
+        
+        ws = wb["Assessment_Log"]
+        assessments = []
+        
+        # Read headers
+        headers = []
+        for col in range(1, ws.max_column + 1):
+            headers.append(ws.cell(row=1, column=col).value or "")
+        
+        # Read data rows
+        for row in range(2, ws.max_row + 1):
+            assessment = {}
+            for col, header in enumerate(headers, 1):
+                value = ws.cell(row=row, column=col).value
+                # Convert header to camelCase for frontend
+                key = header.lower().replace(" ", "_").replace("(", "").replace(")", "").replace("-", "_")
+                assessment[key] = value
+            assessments.append(assessment)
+        
+        wb.close()
+        
+        return {"assessments": assessments}
+    
+    except Exception as e:
+        print(f"[ERROR] Failed to get assessments: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get assessments: {str(e)}")
+
+# ------------------------------
 # Assessment Logging Endpoint
 # ------------------------------
 @app.post("/log-assessment")
@@ -1338,6 +1458,50 @@ async def log_assessment(assessment_data: dict = Body(...)):
     """
     try:
         print("[ASSESSMENT] Starting assessment log...")
+        
+        # Validate required fields
+        required_fields = ["sessionId", "studentId", "aiQuestionQuality", "engagementLevel", "understandingProgress", "efficiencyScore"]
+        for field in required_fields:
+            if field not in assessment_data or assessment_data[field] is None or assessment_data[field] == "":
+                raise HTTPException(status_code=400, detail=f"Required field missing: {field}")
+        
+        # Validate scale fields (1-5)
+        scale_fields = {
+            "aiQuestionQuality": assessment_data.get("aiQuestionQuality"),
+            "engagementLevel": assessment_data.get("engagementLevel"),
+            "understandingProgress": assessment_data.get("understandingProgress"),
+            "efficiencyScore": assessment_data.get("efficiencyScore")
+        }
+        for field_name, value in scale_fields.items():
+            if value is not None:
+                try:
+                    num_value = int(value)
+                    if num_value < 1 or num_value > 5:
+                        raise HTTPException(status_code=400, detail=f"{field_name} must be between 1 and 5")
+                except (ValueError, TypeError):
+                    raise HTTPException(status_code=400, detail=f"{field_name} must be a number between 1 and 5")
+        
+        # Validate tutorInterventions (must be non-negative integer)
+        tutor_interventions = assessment_data.get("tutorInterventions", 0)
+        try:
+            tutor_interventions = int(tutor_interventions)
+            if tutor_interventions < 0:
+                raise HTTPException(status_code=400, detail="tutorInterventions must be non-negative")
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="tutorInterventions must be a non-negative integer")
+        
+        # Check for duplicate session assessment
+        if os.path.exists(EXCEL_PATH):
+            wb_check = load_workbook(EXCEL_PATH)
+            if "Assessment_Log" in wb_check.sheetnames:
+                ws_check = wb_check["Assessment_Log"]
+                session_id = assessment_data.get("sessionId", "")
+                # Check if this session already has an assessment
+                for row in range(2, ws_check.max_row + 1):
+                    if ws_check.cell(row=row, column=1).value == session_id:
+                        wb_check.close()
+                        raise HTTPException(status_code=409, detail=f"Assessment for session {session_id} already exists")
+            wb_check.close()
         
         # Check if Excel file exists
         if not os.path.exists(EXCEL_PATH):
@@ -1357,21 +1521,29 @@ async def log_assessment(assessment_data: dict = Body(...)):
         if "Assessment_Log" not in wb.sheetnames:
             ws = wb.create_sheet("Assessment_Log")
             
-            # Define headers
+            # Define headers (21 columns as per requirements)
             headers = [
                 "Session-ID",
-                "Assessment Date",
-                "Assessment Time",
-                "Assessor Name",
-                "AI Question Quality",
-                "Engagement Level",
-                "Understanding Progress",
-                "Efficiency Score",
+                "Date (DD.MM.YYYY)",
+                "Student-ID",
+                "Grade",
+                "Topic Area",
+                "Topic Detail",
+                "Topic Complexity (1-5)",
+                "AI Question Quality (1-5)",
+                "Prompt Strategy",
+                "Tutor Interventions",
+                "Student Override (Yes/No)",
                 "Learner Type Indicator",
-                "Question Loops Total",
+                "Understanding Progress (1-5)",
+                "Linguistic Neutrality Check (Yes/No)",
+                "Engagement Level (1-5)",
+                "Evaluative Language Check (Yes/No)",
+                "Student Feedback Safety (Yes/No/Unclear)",
+                "Question Loops",
+                "Efficiency Score (1-5)",
                 "Remarks",
-                "Further Considerations",
-                "Completion Status"
+                "Further Considerations"
             ]
             
             # Write headers
@@ -1394,12 +1566,14 @@ async def log_assessment(assessment_data: dict = Body(...)):
                 cell.alignment = header_alignment
                 
                 # Set column widths
-                if header in ["Remarks", "Further Considerations"]:
+                if header in ["Remarks", "Further Considerations", "Prompt Strategy"]:
                     ws.column_dimensions[col_letter].width = 40
                 elif header == "Session-ID":
                     ws.column_dimensions[col_letter].width = 15
-                elif header == "Learner Type Indicator":
+                elif header in ["Learner Type Indicator", "Topic Area", "Topic Detail"]:
                     ws.column_dimensions[col_letter].width = 25
+                elif header == "Date (DD.MM.YYYY)":
+                    ws.column_dimensions[col_letter].width = 16
                 else:
                     ws.column_dimensions[col_letter].width = 18
             
@@ -1407,22 +1581,66 @@ async def log_assessment(assessment_data: dict = Body(...)):
         else:
             ws = wb["Assessment_Log"]
         
-        # Prepare assessment data row
+        # Get topic data from Session_Log by joining on Session-ID
+        topic_area = ""
+        topic_detail = ""
+        topic_complexity = ""
+        session_id = assessment_data.get("sessionId", "")
+        
+        if "Session_Log" in wb.sheetnames:
+            session_ws = wb["Session_Log"]
+            # Find session in Session_Log (Session_ID is column A, Thema is column H, Schwierigkeitsgrad is column J)
+            for row in range(2, session_ws.max_row + 1):
+                if session_ws.cell(row=row, column=1).value == session_id:
+                    topic_area = session_ws.cell(row=row, column=7).value or ""  # Fach
+                    topic_detail = session_ws.cell(row=row, column=8).value or ""  # Thema
+                    difficulty = session_ws.cell(row=row, column=10).value or ""  # Schwierigkeitsgrad
+                    # Convert difficulty to 1-5 scale
+                    if difficulty == "Leicht":
+                        topic_complexity = 1
+                    elif difficulty == "Mittel":
+                        topic_complexity = 3
+                    elif difficulty == "Anspruchsvoll":
+                        topic_complexity = 5
+                    else:
+                        topic_complexity = ""
+                    break
+        
+        # Prepare assessment data row (21 columns)
         now = datetime.now()
+        # Format date as DD.MM.YYYY
+        date_str = now.strftime("%d.%m.%Y")
+        
+        # Convert boolean to Yes/No
+        student_override_str = "Yes" if assessment_data.get("studentOverride", False) else "No"
+        linguistic_neutrality_str = "Yes" if assessment_data.get("linguisticNeutralityCheck", False) else "No"
+        evaluative_language_str = "Yes" if assessment_data.get("evaluativeLanguageCheck", False) else "No"
+        student_feedback_safety = assessment_data.get("studentFeedbackSafety", "") or ""
+        if student_feedback_safety:
+            student_feedback_safety = student_feedback_safety.capitalize()
+        
         assessment_row = [
-            assessment_data.get("sessionId", ""),
-            now.strftime("%Y-%m-%d"),
-            now.strftime("%H:%M:%S"),
-            assessment_data.get("assessorName", "Nicht angegeben"),
+            session_id,
+            date_str,  # DD.MM.YYYY format
+            assessment_data.get("studentId", ""),
+            assessment_data.get("grade", ""),
+            topic_area,  # From Session_Log
+            topic_detail,  # From Session_Log
+            topic_complexity,  # From Session_Log (1-5)
             assessment_data.get("aiQuestionQuality", 0),
-            assessment_data.get("engagementLevel", 0),
-            assessment_data.get("understandingProgress", 0),
-            assessment_data.get("efficiencyScore", 0),
+            assessment_data.get("promptStrategy", ""),
+            assessment_data.get("tutorInterventions", 0),
+            student_override_str,
             assessment_data.get("learnerTypeIndicator", "Nicht angegeben"),
+            assessment_data.get("understandingProgress", 0),
+            linguistic_neutrality_str,
+            assessment_data.get("engagementLevel", 0),
+            evaluative_language_str,
+            student_feedback_safety,
             assessment_data.get("questionLoops", 0),
+            assessment_data.get("efficiencyScore", 0),
             assessment_data.get("remarks", ""),
-            assessment_data.get("furtherConsiderations", ""),
-            "Complete"
+            assessment_data.get("furtherConsiderations", "")
         ]
         
         # Find next row
@@ -1465,4 +1683,166 @@ async def log_assessment(assessment_data: dict = Body(...)):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to log assessment: {str(e)}"
+        )
+
+# ------------------------------
+# Export Assessment Log to Separate Excel File
+# ------------------------------
+@app.get("/export-assessment-log")
+async def export_assessment_log():
+    """
+    Export all assessment data to a separate Excel file.
+    File name: Clarity_Coach_Assessment_Log_[DATE].xlsx
+    Contains exactly 21 columns as per Assessment template.
+    """
+    try:
+        print("[EXPORT] Starting assessment log export...")
+        
+        # Check if main Excel file exists
+        if not os.path.exists(EXCEL_PATH):
+            raise HTTPException(
+                status_code=404,
+                detail="Session log file not found. No assessments to export."
+            )
+        
+        # Load workbook
+        wb = load_workbook(EXCEL_PATH)
+        
+        # Check if Assessment_Log sheet exists
+        if "Assessment_Log" not in wb.sheetnames:
+            wb.close()
+            raise HTTPException(
+                status_code=404,
+                detail="No assessment data found. Please complete at least one assessment first."
+            )
+        
+        # Import styling classes
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+        
+        # Create new workbook for export
+        export_wb = Workbook()
+        export_ws = export_wb.active
+        export_ws.title = "Assessment_Log"
+        
+        # Get data from existing Assessment_Log
+        source_ws = wb["Assessment_Log"]
+        
+        # Copy headers (21 columns)
+        headers = [
+            "Session-ID",
+            "Date (DD.MM.YYYY)",
+            "Student-ID",
+            "Grade",
+            "Topic Area",
+            "Topic Detail",
+            "Topic Complexity (1-5)",
+            "AI Question Quality (1-5)",
+            "Prompt Strategy",
+            "Tutor Interventions",
+            "Student Override (Yes/No)",
+            "Learner Type Indicator",
+            "Understanding Progress (1-5)",
+            "Linguistic Neutrality Check (Yes/No)",
+            "Engagement Level (1-5)",
+            "Evaluative Language Check (Yes/No)",
+            "Student Feedback Safety (Yes/No/Unclear)",
+            "Question Loops",
+            "Efficiency Score (1-5)",
+            "Remarks",
+            "Further Considerations"
+        ]
+        
+        # Write headers
+        export_ws.append(headers)
+        
+        # Style headers
+        header_font = Font(bold=True, color="FFFFFF", size=11)
+        header_fill = PatternFill(
+            start_color="2C5F8D",
+            end_color="2C5F8D",
+            fill_type="solid"
+        )
+        header_alignment = Alignment(horizontal="center", vertical="center")
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        for col_num, header in enumerate(headers, 1):
+            col_letter = get_column_letter(col_num)
+            cell = export_ws[f"{col_letter}1"]
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = border
+            
+            # Set column widths
+            if header in ["Remarks", "Further Considerations", "Prompt Strategy"]:
+                export_ws.column_dimensions[col_letter].width = 40
+            elif header == "Session-ID":
+                export_ws.column_dimensions[col_letter].width = 15
+            elif header in ["Learner Type Indicator", "Topic Area", "Topic Detail"]:
+                export_ws.column_dimensions[col_letter].width = 25
+            elif header == "Date (DD.MM.YYYY)":
+                export_ws.column_dimensions[col_letter].width = 16
+            else:
+                export_ws.column_dimensions[col_letter].width = 18
+        
+        # Copy all data rows (skip header row)
+        for row in range(2, source_ws.max_row + 1):
+            data_row = []
+            for col in range(1, 22):  # Exactly 21 columns
+                cell_value = source_ws.cell(row=row, column=col).value
+                data_row.append(cell_value)
+            
+            # Write data row
+            export_ws.append(data_row)
+            
+            # Apply formatting
+            for col in range(1, 22):
+                cell = export_ws.cell(row=export_ws.max_row, column=col)
+                cell.border = border
+                cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+        
+        # Set row height for header
+        export_ws.row_dimensions[1].height = 30
+        
+        # Freeze first row
+        export_ws.freeze_panes = 'A2'
+        
+        # Generate filename with date
+        today = datetime.now().strftime("%Y%m%d")
+        export_filename = f"Clarity_Coach_Assessment_Log_{today}.xlsx"
+        export_path = os.path.join(
+            os.path.dirname(EXCEL_PATH),
+            export_filename
+        )
+        
+        # Save export file
+        export_wb.save(export_path)
+        export_wb.close()
+        wb.close()
+        
+        print(f"[EXPORT] Assessment log exported successfully: {export_filename}")
+        
+        return {
+            "success": True,
+            "filename": export_filename,
+            "path": export_path,
+            "row_count": source_ws.max_row - 1,  # Exclude header
+            "message": f"Assessment log exported successfully. {source_ws.max_row - 1} assessments exported."
+        }
+    
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"[ERROR] Failed to export assessment log: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to export assessment log: {str(e)}"
         )
