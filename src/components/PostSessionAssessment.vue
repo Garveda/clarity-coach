@@ -352,13 +352,21 @@ const submitAssessment = async () => {
     }
     
     const result = await response.json();
+    
+    console.log('[ASSESSMENT] Success response:', result);
+    
     toast.success('Bewertung erfolgreich gespeichert!', {
       description: `Session-ID: ${props.sessionId}`
     });
     
     resetForm();
+    
+    console.log('[ASSESSMENT] Emitting submitted event');
     emit('submitted', result);
+    
+    console.log('[ASSESSMENT] Scheduling close in 500ms');
     setTimeout(() => {
+      console.log('[ASSESSMENT] Emitting close event');
       emit('close');
     }, 500);
     
