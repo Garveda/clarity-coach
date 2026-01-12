@@ -1095,6 +1095,10 @@ async def log_assessment(assessment_data: dict = Body(...)):
         # Load workbook
         wb = load_workbook(EXCEL_PATH)
         
+        # Import styling classes OUTSIDE conditional block (needed for data rows too)
+        from openpyxl.styles import Font, PatternFill, Alignment
+        from openpyxl.utils import get_column_letter
+        
         # Create Assessment_Log sheet if it doesn't exist
         if "Assessment_Log" not in wb.sheetnames:
             ws = wb.create_sheet("Assessment_Log")
@@ -1120,9 +1124,6 @@ async def log_assessment(assessment_data: dict = Body(...)):
             ws.append(headers)
             
             # Style headers (matching Session_Log style)
-            from openpyxl.styles import Font, PatternFill, Alignment
-            from openpyxl.utils import get_column_letter
-            
             header_font = Font(bold=True, color="FFFFFF", size=11)
             header_fill = PatternFill(
                 start_color="2C5F8D",
