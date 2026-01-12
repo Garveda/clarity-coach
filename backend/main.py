@@ -1213,6 +1213,8 @@ class SessionLogEntry(BaseModel):
     animationen_genutzt: int
     grafiken_genutzt: int
     hints_genutzt: int  # Replaced loesungen_angezeigt (solutions violated Socratic method)
+    ansatzpruefungen_genutzt: int = 0  # Phase 3.3: Approach checks used
+    selbststaendigkeits_score: int = 5  # Phase 3.3: Self-sufficiency (1-5)
     feedback: str
     sitzungsdauer_minuten: float
     notizen: str
@@ -1282,6 +1284,8 @@ async def log_session(entry: SessionLogEntry):
             entry.animationen_genutzt,
             entry.grafiken_genutzt,
             entry.hints_genutzt,  # Replaced loesungen_angezeigt
+            entry.ansatzpruefungen_genutzt,  # Phase 3.3: Approach checks
+            entry.selbststaendigkeits_score,  # Phase 3.3: Self-sufficiency score (1-5)
             entry.feedback,
             entry.sitzungsdauer_minuten,
             entry.notizen

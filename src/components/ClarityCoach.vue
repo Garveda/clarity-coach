@@ -578,7 +578,8 @@ const usageStats = ref({
   hints: 0,           // Replaced solutions
   hintLevels: [],     // Track which levels were used [1,1,2,3,...]
   smartVisuals: 0,    // Unified visual count (Phase 2)
-  visualTypes: []     // Track what visual types were used ['graph', 'animation', ...]
+  visualTypes: [],    // Track what visual types were used ['graph', 'animation', ...]
+  approachChecks: 0   // Phase 3.3: Track approach check usage
 })
 
 // Progressive Hints System (Replaces Solution)
@@ -961,7 +962,8 @@ function handleAnalysisStarted(fileInfo) {
     hints: 0,
     hintLevels: [],
     smartVisuals: 0,
-    visualTypes: []
+    visualTypes: [],
+    approachChecks: 0  // Phase 3.3
   }
   
   // Reset question loop tracking

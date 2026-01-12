@@ -107,6 +107,44 @@
           </div>
         </div>
 
+        <!-- Usage Statistics Section (Phase 3.3) -->
+        <div class="form-section stats-section">
+          <h3>📊 Nutzungsstatistik</h3>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <span class="stat-label">Visualisierungen</span>
+              <span class="stat-value">{{ formData.visualisierungen_genutzt }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Animationen</span>
+              <span class="stat-value">{{ formData.animationen_genutzt }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Grafiken</span>
+              <span class="stat-value">{{ formData.grafiken_genutzt }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Hilfestellungen</span>
+              <span class="stat-value">{{ formData.hints_genutzt }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Ansatzprüfungen</span>
+              <span class="stat-value">{{ formData.ansatzpruefungen_genutzt }}</span>
+            </div>
+            <div class="stat-item highlight">
+              <span class="stat-label">Selbstständigkeit</span>
+              <div class="self-sufficiency-score">
+                <span 
+                  v-for="star in 5" 
+                  :key="star" 
+                  :class="['score-star', star <= formData.selbststaendigkeits_score ? 'filled' : 'empty']"
+                >★</span>
+                <span class="score-label">{{ getSelfSufficiencyLabel(formData.selbststaendigkeits_score) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Notes Section -->
         <div class="form-section">
           <h3>📝 Zusätzliche Informationen</h3>
@@ -130,6 +168,8 @@
         <input type="hidden" v-model="formData.animationen_genutzt" />
         <input type="hidden" v-model="formData.grafiken_genutzt" />
         <input type="hidden" v-model="formData.hints_genutzt" />
+        <input type="hidden" v-model="formData.ansatzpruefungen_genutzt" />
+        <input type="hidden" v-model="formData.selbststaendigkeits_score" />
         <input type="hidden" v-model="formData.sitzungsdauer_minuten" />
 
         <!-- Form Actions -->
@@ -177,7 +217,9 @@ const formData = ref({
   visualisierungen_genutzt: 0,
   animationen_genutzt: 0,
   grafiken_genutzt: 0,
-  hints_genutzt: 0,  // Replaced loesungen_angezeigt
+  hints_genutzt: 0,  // Progressive hints used
+  ansatzpruefungen_genutzt: 0,  // Phase 3.3: Approach checks used
+  selbststaendigkeits_score: 5,  // Phase 3.3: Self-sufficiency (1-5), 5=independent
   feedback: '',
   sitzungsdauer_minuten: 0,
   notizen: ''
@@ -209,6 +251,41 @@ const updateUsageStats = (stats) => {
   formData.value.animationen_genutzt = stats.animations || 0;
   formData.value.grafiken_genutzt = stats.graphs || 0;
   formData.value.hints_genutzt = stats.hints || 0;  // Tracks progressive hints used
+  formData.value.ansatzpruefungen_genutzt = stats.approachChecks || 0;  // Phase 3.3
+  
+  // Calculate self-sufficiency score based on hints + approach checks
+  // Score: 5=independent, 4=minimal help, 3=moderate, 2=significant, 1=heavy support
+  const totalHelp = (stats.hints || 0) + (stats.approachChecks || 0);
+  formData.value.selbststaendigkeits_score = calculateSelfSufficiencyScore(totalHelp);
+};
+
+/**
+ * Calculate self-sufficiency score based on total help used
+ * @param {number} totalHelp - Sum of hints + approach checks
+ * @returns {1|2|3|4|5} Score from 1 (heavy support) to 5 (independent)
+ */
+const calculateSelfSufficiencyScore = (totalHelp) => {
+  if (totalHelp === 0) return 5;      // Solved independently
+  if (totalHelp <= 2) return 4;       // Minimal help
+  if (totalHelp <= 5) return 3;       // Moderate help
+  if (totalHelp <= 8) return 2;       // Significant help
+  return 1;                           // Heavy support needed
+};
+
+/**
+ * Get human-readable label for self-sufficiency score
+ * @param {number} score - Score 1-5
+ * @returns {string} Label
+ */
+const getSelfSufficiencyLabel = (score) => {
+  const labels = {
+    5: 'Eigenständig',
+    4: 'Minimal unterstützt',
+    3: 'Moderat unterstützt',
+    2: 'Stark unterstützt',
+    1: 'Intensive Betreuung'
+  };
+  return labels[score] || 'Unbekannt';
 };
 
 // Calculate session duration
@@ -283,6 +360,8 @@ const resetForm = () => {
     animationen_genutzt: 0,
     grafiken_genutzt: 0,
     hints_genutzt: 0,
+    ansatzpruefungen_genutzt: 0,
+    selbststaendigkeits_score: 5,
     feedback: '',
     sitzungsdauer_minuten: 0,
     notizen: ''
@@ -498,6 +577,83 @@ defineExpose({
   cursor: not-allowed;
 }
 
+/* Usage Statistics Section (Phase 3.3) */
+.stats-section {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-radius: 12px;
+  padding: 20px !important;
+  margin-bottom: 20px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+}
+
+.stat-item {
+  background: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e5e7eb;
+}
+
+.stat-item.highlight {
+  grid-column: span 3;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2c5f8d 100%);
+  color: white;
+  padding: 16px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.stat-item.highlight .stat-label {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e3a5f;
+}
+
+.self-sufficiency-score {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.score-star {
+  font-size: 20px;
+}
+
+.score-star.filled {
+  color: #fbbf24;
+}
+
+.score-star.empty {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.score-label {
+  margin-left: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .form-row {
@@ -518,6 +674,14 @@ defineExpose({
   
   .session-form {
     padding: 20px;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .stat-item.highlight {
+    grid-column: span 2;
   }
 }
 </style>

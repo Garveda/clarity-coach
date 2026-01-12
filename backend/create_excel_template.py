@@ -14,7 +14,7 @@ def create_session_log_template():
     ws = wb.active
     ws.title = "Session_Log"
     
-    # Define headers
+    # Define headers (Updated Phase 3.3 - Added approach checks and self-sufficiency)
     headers = [
         "Session_ID",
         "Datum",
@@ -33,7 +33,9 @@ def create_session_log_template():
         "Visualisierungen_Genutzt",
         "Animationen_Genutzt",
         "Grafiken_Genutzt",
-        "Lösungen_Angezeigt",
+        "Hints_Genutzt",  # Renamed from Lösungen_Angezeigt (Phase 3)
+        "Ansatzpruefungen_Genutzt",  # Phase 3.3: Approach checks
+        "Selbststaendigkeits_Score",  # Phase 3.3: Self-sufficiency (1-5)
         "Feedback",
         "Sitzungsdauer_Minuten",
         "Notizen"
@@ -58,7 +60,7 @@ def create_session_log_template():
         cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
         cell.border = border
     
-    # Set column widths
+    # Set column widths (Updated Phase 3.3)
     column_widths = {
         'A': 12,  # Session_ID
         'B': 12,  # Datum
@@ -77,10 +79,12 @@ def create_session_log_template():
         'O': 20,  # Visualisierungen_Genutzt
         'P': 20,  # Animationen_Genutzt
         'Q': 18,  # Grafiken_Genutzt
-        'R': 18,  # Lösungen_Angezeigt
-        'S': 15,  # Feedback
-        'T': 20,  # Sitzungsdauer_Minuten
-        'U': 30,  # Notizen
+        'R': 15,  # Hints_Genutzt
+        'S': 22,  # Ansatzpruefungen_Genutzt (Phase 3.3)
+        'T': 22,  # Selbststaendigkeits_Score (Phase 3.3)
+        'U': 15,  # Feedback
+        'V': 20,  # Sitzungsdauer_Minuten
+        'W': 30,  # Notizen
     }
     
     for col, width in column_widths.items():
@@ -89,7 +93,7 @@ def create_session_log_template():
     # Set row height for header
     ws.row_dimensions[1].height = 30
     
-    # Add example row (optional, can be removed)
+    # Add example row (optional, can be removed) - Updated Phase 3.3
     example_data = [
         "001",
         datetime.now().strftime("%Y-%m-%d"),
@@ -105,10 +109,12 @@ def create_session_log_template():
         "PDF",
         "1",
         "3",
-        "2",
-        "1",
-        "0",
-        "3",
+        "2",  # Visualisierungen
+        "1",  # Animationen
+        "0",  # Grafiken
+        "2",  # Hints (Progressive hints used)
+        "1",  # Ansatzpruefungen (Approach checks)
+        "4",  # Selbststaendigkeits_Score (1-5, 5=independent)
         "Helpful",
         "15.5",
         "Gute Fortschritte beim Verständnis"
