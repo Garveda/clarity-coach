@@ -1072,3 +1072,142 @@ async def log_session(entry: SessionLogEntry):
             status_code=500,
             detail=f"Failed to log session: {str(e)}"
         )
+
+# ------------------------------
+# Assessment Logging Endpoint
+# ------------------------------
+@app.post("/log-assessment")
+async def log_assessment(assessment_data: dict = Body(...)):
+    """
+    Log post-session assessment to separate Excel sheet (Assessment_Log).
+    This endpoint receives tutor/evaluator ratings and observations.
+    """
+    try:
+        print("[ASSESSMENT] Starting assessment log...")
+        
+        # Check if Excel file exists
+        if not os.path.exists(EXCEL_PATH):
+            raise HTTPException(
+                status_code=404,
+                detail="Session log file not found. Please complete a session first."
+            )
+        
+        # Load workbook
+        wb = load_workbook(EXCEL_PATH)
+        
+        # Create Assessment_Log sheet if it doesn't exist
+        if "Assessment_Log" not in wb.sheetnames:
+            ws = wb.create_sheet("Assessment_Log")
+            
+            # Define headers
+            headers = [
+                "Session-ID",
+                "Assessment Date",
+                "Assessment Time",
+                "Assessor Name",
+                "AI Question Quality",
+                "Engagement Level",
+                "Understanding Progress",
+                "Efficiency Score",
+                "Learner Type Indicator",
+                "Question Loops Total",
+                "Remarks",
+                "Further Considerations",
+                "Completion Status"
+            ]
+            
+            # Write headers
+            ws.append(headers)
+            
+            # Style headers (matching Session_Log style)
+            from openpyxl.styles import Font, PatternFill, Alignment
+            from openpyxl.utils import get_column_letter
+            
+            header_font = Font(bold=True, color="FFFFFF", size=11)
+            header_fill = PatternFill(
+                start_color="2C5F8D",
+                end_color="2C5F8D",
+                fill_type="solid"
+            )
+            header_alignment = Alignment(horizontal="center", vertical="center")
+            
+            for col_num, header in enumerate(headers, 1):
+                col_letter = get_column_letter(col_num)
+                cell = ws[f"{col_letter}1"]
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_alignment
+                
+                # Set column widths
+                if header in ["Remarks", "Further Considerations"]:
+                    ws.column_dimensions[col_letter].width = 40
+                elif header == "Session-ID":
+                    ws.column_dimensions[col_letter].width = 15
+                elif header == "Learner Type Indicator":
+                    ws.column_dimensions[col_letter].width = 25
+                else:
+                    ws.column_dimensions[col_letter].width = 18
+            
+            print("[ASSESSMENT] Created new Assessment_Log sheet")
+        else:
+            ws = wb["Assessment_Log"]
+        
+        # Prepare assessment data row
+        now = datetime.now()
+        assessment_row = [
+            assessment_data.get("sessionId", ""),
+            now.strftime("%Y-%m-%d"),
+            now.strftime("%H:%M:%S"),
+            assessment_data.get("assessorName", "Nicht angegeben"),
+            assessment_data.get("aiQuestionQuality", 0),
+            assessment_data.get("engagementLevel", 0),
+            assessment_data.get("understandingProgress", 0),
+            assessment_data.get("efficiencyScore", 0),
+            assessment_data.get("learnerTypeIndicator", "Nicht angegeben"),
+            assessment_data.get("questionLoops", 0),
+            assessment_data.get("remarks", ""),
+            assessment_data.get("furtherConsiderations", ""),
+            "Complete"
+        ]
+        
+        # Find next row
+        next_row = ws.max_row + 1
+        
+        # Write data with formatting
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        for col_num, value in enumerate(assessment_row, 1):
+            cell = ws.cell(row=next_row, column=col_num)
+            cell.value = value
+            cell.border = border
+            cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+        
+        # Save workbook
+        wb.save(EXCEL_PATH)
+        wb.close()
+        
+        session_id = assessment_data.get("sessionId", "Unknown")
+        print(f"[ASSESSMENT] Assessment logged successfully for session: {session_id}")
+        
+        return {
+            "success": True,
+            "sessionId": session_id,
+            "message": "Assessment erfolgreich protokolliert",
+            "row": next_row
+        }
+    
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"[ERROR] Failed to log assessment: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to log assessment: {str(e)}"
+        )

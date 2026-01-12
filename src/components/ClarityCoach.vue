@@ -292,6 +292,15 @@
       @close="showSessionForm = false"
       @submitted="handleSessionSubmitted"
     />
+    
+    <!-- Post-Session Assessment Modal -->
+    <PostSessionAssessment
+      :isOpen="showAssessmentModal"
+      :sessionId="currentSessionId"
+      :questionLoops="totalQuestionLoops"
+      @close="showAssessmentModal = false"
+      @submitted="handleAssessmentSubmitted"
+    />
   </div>
 </template>
 
@@ -299,6 +308,7 @@
 import { ref, computed, nextTick } from 'vue'
 import FileUpload from './FileUpload.vue'
 import SessionForm from './SessionForm.vue'
+import PostSessionAssessment from './PostSessionAssessment.vue'
 import { toast } from 'vue-sonner'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
@@ -340,6 +350,13 @@ const graphLoading = ref([])          // [ [bool, ...], ... ]
 // Track current question index for each subtask
 const currentQuestionIndex = ref([])  // [ [number, ...], ... ]
 
+// Track question loop interactions for assessment
+const questionLoopTracking = ref({})  // { taskIndex: { subIndex: { totalRefreshes, viewHistory } } }
+
+// Assessment Modal
+const showAssessmentModal = ref(false)
+const currentSessionId = ref('')
+
 // ----------------------
 // Computed Properties
 // ----------------------
@@ -348,6 +365,16 @@ const totalSubtasks = computed(() => {
   return response.value.reduce((total, task) => {
     return total + (task.subtasks?.length || 0)
   }, 0)
+})
+
+const totalQuestionLoops = computed(() => {
+  let total = 0
+  Object.values(questionLoopTracking.value).forEach(task => {
+    Object.values(task).forEach(subtask => {
+      total += (subtask.totalRefreshes || 0)
+    })
+  })
+  return total
 })
 
 // ----------------------
@@ -359,6 +386,22 @@ function handleSessionSubmitted(result) {
   if (sessionFormRef.value) {
     sessionFormRef.value.updateUsageStats(usageStats.value)
   }
+  
+  // Capture session ID and show assessment modal after a delay
+  if (result && result.session_id) {
+    currentSessionId.value = result.session_id
+    
+    // Show assessment modal after session form closes (2 second delay)
+    setTimeout(() => {
+      showAssessmentModal.value = true
+    }, 2000)
+  }
+}
+
+function handleAssessmentSubmitted(result) {
+  console.log('Assessment submitted:', result)
+  showAssessmentModal.value = false
+  toast.success('Thank you for completing the assessment!')
 }
 
 // ----------------------
@@ -639,6 +682,13 @@ function handleAnalysisStarted(fileInfo) {
     graphs: 0,
     solutions: 0
   }
+  
+  // Reset question loop tracking
+  questionLoopTracking.value = {}
+  
+  // Reset assessment modal
+  showAssessmentModal.value = false
+  currentSessionId.value = ''
 }
 
 /* ----------------------------------------------------------------------------
@@ -713,13 +763,32 @@ function giveFeedback(index, type) {
 function refreshQuestion(taskIndex, subIndex, subtask) {
   if (!subtask.questions || subtask.questions.length === 0) return
   
+  // Initialize tracking if needed
+  if (!questionLoopTracking.value[taskIndex]) {
+    questionLoopTracking.value[taskIndex] = {}
+  }
+  if (!questionLoopTracking.value[taskIndex][subIndex]) {
+    questionLoopTracking.value[taskIndex][subIndex] = {
+      totalRefreshes: 0,
+      viewHistory: []
+    }
+  }
+  
   const currentIdx = currentQuestionIndex.value[taskIndex][subIndex]
   const nextIdx = (currentIdx + 1) % subtask.questions.length
+  
+  // Track the refresh
+  questionLoopTracking.value[taskIndex][subIndex].totalRefreshes++
+  questionLoopTracking.value[taskIndex][subIndex].viewHistory.push({
+    questionIndex: nextIdx,
+    timestamp: new Date().toISOString(),
+    isLoop: nextIdx === 0 && currentIdx !== 0 // Full cycle detected
+  })
   
   currentQuestionIndex.value[taskIndex][subIndex] = nextIdx
   
   toast.success('Question updated', {
-    description: `Showing question ${nextIdx + 1} of ${subtask.questions.length}`
+    description: `Showing question ${nextIdx + 1} of ${subtask.questions.length} (Loops: ${questionLoopTracking.value[taskIndex][subIndex].totalRefreshes})`
   })
 }
 
