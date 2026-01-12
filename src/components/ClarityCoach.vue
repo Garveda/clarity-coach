@@ -126,46 +126,68 @@
 
             <!-- Action Buttons Row -->
             <div class="action-buttons-row">
-              <!-- Visualization Button -->
-              <button
-                class="action-btn visualization-btn"
-                @click="toggleVisualization(tIndex, sIndex, task, sub)"
-              >
-                <span v-if="visualizations[tIndex]?.[sIndex]">
-                  Visualisierung ausblenden
-                </span>
-                <span v-else>
-                  Visualisierung anzeigen
-                </span>
-              </button>
+              <!-- PHASE 2: Unified Smart Visual Button (when feature flag enabled) -->
+              <template v-if="FEATURE_FLAGS.smartVisualHint">
+                <button
+                  class="action-btn smart-visual-btn"
+                  @click="requestSmartVisual(tIndex, sIndex, task, sub)"
+                  :disabled="smartVisualLoading[tIndex]?.[sIndex]"
+                >
+                  <span v-if="smartVisualLoading[tIndex]?.[sIndex]">
+                    <span class="loading-dots">Analysiere</span>
+                  </span>
+                  <span v-else-if="smartVisuals[tIndex]?.[sIndex]">
+                    💡 Andere Visualisierung
+                  </span>
+                  <span v-else>
+                    💡 Visuelle Hilfe
+                  </span>
+                </button>
+              </template>
+              
+              <!-- LEGACY: Separate Visual Buttons (when smartVisualHint disabled) -->
+              <template v-else>
+                <!-- Visualization Button -->
+                <button
+                  class="action-btn visualization-btn"
+                  @click="toggleVisualization(tIndex, sIndex, task, sub)"
+                >
+                  <span v-if="visualizations[tIndex]?.[sIndex]">
+                    Visualisierung ausblenden
+                  </span>
+                  <span v-else>
+                    Visualisierung anzeigen
+                  </span>
+                </button>
 
-              <!-- Manim Animation Button -->
-              <button
-                class="action-btn animation-btn"
-                @click="toggleAnimation(tIndex, sIndex, task, sub)"
-              >
-                <span v-if="animations[tIndex]?.[sIndex]">
-                  Animation ausblenden
-                </span>
-                <span v-else>
-                  Animation erstellen
-                </span>
-              </button>
+                <!-- Manim Animation Button -->
+                <button
+                  class="action-btn animation-btn"
+                  @click="toggleAnimation(tIndex, sIndex, task, sub)"
+                >
+                  <span v-if="animations[tIndex]?.[sIndex]">
+                    Animation ausblenden
+                  </span>
+                  <span v-else>
+                    Animation erstellen
+                  </span>
+                </button>
 
-              <!-- Graph Button -->
-              <button
-                class="action-btn graph-btn"
-                @click="toggleGraph(tIndex, sIndex, task, sub)"
-              >
-                <span v-if="graphs[tIndex]?.[sIndex]">
-                  Grafik ausblenden
-                </span>
-                <span v-else>
-                  Grafik erstellen
-                </span>
-              </button>
+                <!-- Graph Button -->
+                <button
+                  class="action-btn graph-btn"
+                  @click="toggleGraph(tIndex, sIndex, task, sub)"
+                >
+                  <span v-if="graphs[tIndex]?.[sIndex]">
+                    Grafik ausblenden
+                  </span>
+                  <span v-else>
+                    Grafik erstellen
+                  </span>
+                </button>
+              </template>
 
-              <!-- Hint Button (Progressive Socratic Hints) -->
+              <!-- Hint Button (Progressive Socratic Hints) - Always shown -->
               <button
                 class="action-btn hint-btn"
                 @click="requestHint(tIndex, sIndex, task, sub)"
@@ -179,75 +201,130 @@
               </button>
             </div>
 
-            <!-- Ladeanzeige für Visualization -->
-            <div
-              v-if="visualizationLoading[tIndex]?.[sIndex]"
-              class="visualization-loading"
-            >
-              Visualisierung wird generiert...
-            </div>
-
-            <!-- Visualization Box -->
-            <div
-              v-if="visualizations[tIndex]?.[sIndex]"
-              class="visualization-box"
-            >
-              <h4 class="visualization-title">📊 Schlüsselfakten & Visualisierung</h4>
-              <div v-html="formatVisualization(visualizations[tIndex][sIndex])"></div>
-            </div>
-
-            <!-- Ladeanzeige für Animation -->
-            <div
-              v-if="animationLoading[tIndex]?.[sIndex]"
-              class="animation-loading"
-            >
-              <div class="loading-spinner"></div>
-              <span>Animation wird erstellt... Dies kann bis zu 30 Sekunden dauern.</span>
-            </div>
-
-            <!-- Animation Box -->
-            <div
-              v-if="animations[tIndex]?.[sIndex]"
-              class="animation-box"
-            >
-              <div class="animation-header">
-                <h4 class="animation-title">🎬 Interaktive Animation</h4>
-                <button 
-                  class="replay-btn"
-                  @click="replayAnimation(tIndex, sIndex)"
-                  :disabled="animations[tIndex][sIndex].playing"
-                >
-                  {{ animations[tIndex][sIndex].playing ? '⏳ Läuft...' : '🔄 Wiederholen' }}
-                </button>
+            <!-- PHASE 2: Smart Visual Loading & Display -->
+            <template v-if="FEATURE_FLAGS.smartVisualHint">
+              <!-- Smart Visual Loading -->
+              <div
+                v-if="smartVisualLoading[tIndex]?.[sIndex]"
+                class="smart-visual-loading"
+              >
+                <div class="loading-spinner"></div>
+                <span>KI wählt beste Visualisierung aus...</span>
               </div>
-              
-              <!-- Animation Container -->
-              <div 
-                :id="`anim-${tIndex}-${sIndex}`"
-                class="animation-canvas"
-              ></div>
-            </div>
 
-            <!-- Ladeanzeige für Graph -->
-            <div
-              v-if="graphLoading[tIndex]?.[sIndex]"
-              class="graph-loading"
-            >
-              <div class="loading-spinner"></div>
-              <span>Grafik wird erstellt...</span>
-            </div>
+              <!-- Smart Visual Box (Unified Display) -->
+              <div
+                v-if="smartVisuals[tIndex]?.[sIndex]"
+                class="smart-visual-box"
+                :class="`visual-type-${smartVisuals[tIndex][sIndex].type}`"
+              >
+                <div class="smart-visual-header">
+                  <h4 class="smart-visual-title">
+                    {{ getSmartVisualTitle(smartVisuals[tIndex][sIndex].type) }}
+                  </h4>
+                  <span class="visual-type-badge">
+                    {{ getSmartVisualBadge(smartVisuals[tIndex][sIndex].type) }}
+                  </span>
+                </div>
+                <p class="visual-reason">
+                  {{ smartVisuals[tIndex][sIndex].reason }}
+                </p>
+                
+                <!-- Render based on type -->
+                <div v-if="smartVisuals[tIndex][sIndex].type === 'graph'" class="smart-visual-content">
+                  <div :id="`smart-graph-${tIndex}-${sIndex}`" class="graph-container"></div>
+                </div>
+                <div v-else-if="smartVisuals[tIndex][sIndex].type === 'animation'" class="smart-visual-content">
+                  <div :id="`smart-anim-${tIndex}-${sIndex}`" class="animation-canvas"></div>
+                  <button 
+                    class="replay-btn"
+                    @click="replaySmartAnimation(tIndex, sIndex)"
+                    :disabled="smartVisuals[tIndex][sIndex].playing"
+                  >
+                    {{ smartVisuals[tIndex][sIndex].playing ? '⏳ Läuft...' : '🔄 Wiederholen' }}
+                  </button>
+                </div>
+                <div v-else class="smart-visual-content">
+                  <div v-html="formatVisualization(smartVisuals[tIndex][sIndex].data)"></div>
+                </div>
+              </div>
+            </template>
 
-            <!-- Graph Box -->
-            <div
-              v-if="graphs[tIndex]?.[sIndex]"
-              class="graph-box"
-            >
-              <h4 class="graph-title">📊 Interaktive Grafik</h4>
-              <div 
-                :id="`graph-${tIndex}-${sIndex}`"
-                class="graph-container"
-              ></div>
-            </div>
+            <!-- LEGACY: Separate Visual Displays (when smartVisualHint disabled) -->
+            <template v-else>
+              <!-- Ladeanzeige für Visualization -->
+              <div
+                v-if="visualizationLoading[tIndex]?.[sIndex]"
+                class="visualization-loading"
+              >
+                Visualisierung wird generiert...
+              </div>
+
+              <!-- Visualization Box -->
+              <div
+                v-if="visualizations[tIndex]?.[sIndex]"
+                class="visualization-box"
+              >
+                <h4 class="visualization-title">📊 Schlüsselfakten & Visualisierung</h4>
+                <div v-html="formatVisualization(visualizations[tIndex][sIndex])"></div>
+              </div>
+            </template>
+
+            <!-- LEGACY: Animation & Graph (when smartVisualHint disabled) -->
+            <template v-if="!FEATURE_FLAGS.smartVisualHint">
+              <!-- Ladeanzeige für Animation -->
+              <div
+                v-if="animationLoading[tIndex]?.[sIndex]"
+                class="animation-loading"
+              >
+                <div class="loading-spinner"></div>
+                <span>Animation wird erstellt... Dies kann bis zu 30 Sekunden dauern.</span>
+              </div>
+
+              <!-- Animation Box -->
+              <div
+                v-if="animations[tIndex]?.[sIndex]"
+                class="animation-box"
+              >
+                <div class="animation-header">
+                  <h4 class="animation-title">🎬 Interaktive Animation</h4>
+                  <button 
+                    class="replay-btn"
+                    @click="replayAnimation(tIndex, sIndex)"
+                    :disabled="animations[tIndex][sIndex].playing"
+                  >
+                    {{ animations[tIndex][sIndex].playing ? '⏳ Läuft...' : '🔄 Wiederholen' }}
+                  </button>
+                </div>
+                
+                <!-- Animation Container -->
+                <div 
+                  :id="`anim-${tIndex}-${sIndex}`"
+                  class="animation-canvas"
+                ></div>
+              </div>
+
+              <!-- Ladeanzeige für Graph -->
+              <div
+                v-if="graphLoading[tIndex]?.[sIndex]"
+                class="graph-loading"
+              >
+                <div class="loading-spinner"></div>
+                <span>Grafik wird erstellt...</span>
+              </div>
+
+              <!-- Graph Box -->
+              <div
+                v-if="graphs[tIndex]?.[sIndex]"
+                class="graph-box"
+              >
+                <h4 class="graph-title">📊 Interaktive Grafik</h4>
+                <div 
+                  :id="`graph-${tIndex}-${sIndex}`"
+                  class="graph-container"
+                ></div>
+              </div>
+            </template>
 
             <!-- Hint Loading -->
             <div
@@ -351,6 +428,8 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import gsap from 'gsap'
 import Plotly from 'plotly.js-dist-min'
+import { FEATURE_FLAGS } from '../config/featureFlags.js'
+import { visualHintService, VISUAL_TYPES } from '../services/visualHintService.js'
 
 const response = ref(null)
 const feedback = ref({})
@@ -366,7 +445,9 @@ const usageStats = ref({
   animations: 0,
   graphs: 0,
   hints: 0,           // Replaced solutions
-  hintLevels: []      // Track which levels were used [1,1,2,3,...]
+  hintLevels: [],     // Track which levels were used [1,1,2,3,...]
+  smartVisuals: 0,    // Unified visual count (Phase 2)
+  visualTypes: []     // Track what visual types were used ['graph', 'animation', ...]
 })
 
 // Progressive Hints System (Replaces Solution)
@@ -385,6 +466,13 @@ const animationLoading = ref([])      // [ [bool, ...], ... ]
 // Graphs (Plotly) & Ladezustand je Teilaufgabe
 const graphs = ref([])                // [ [string|null, ...], ... ]
 const graphLoading = ref([])          // [ [bool, ...], ... ]
+
+// Unified Smart Visual System (Phase 2)
+const smartVisuals = ref([])          // [ [{ type, data, label }|null, ...], ... ]
+const smartVisualLoading = ref([])    // [ [bool, ...], ... ]
+const smartVisualTypes = ref([])      // [ [string|null, ...], ... ] - tracks what type was shown
+const previousVisuals = ref([])       // [ [string[], ...], ... ] - tracks previous visual types per subtask
+const subtaskStartTime = ref([])      // [ [timestamp, ...], ... ] - when subtask was first viewed
 
 // Track current question index for each subtask
 const currentQuestionIndex = ref([])  // [ [number, ...], ... ]
@@ -708,6 +796,12 @@ function handleAnalysisStarted(fileInfo) {
   animationLoading.value = []
   graphs.value = []
   graphLoading.value = []
+  // Phase 2: Smart Visual System
+  smartVisuals.value = []
+  smartVisualLoading.value = []
+  smartVisualTypes.value = []
+  previousVisuals.value = []
+  subtaskStartTime.value = []
   currentQuestionIndex.value = []
   
   // Store file info for session logging
@@ -722,7 +816,9 @@ function handleAnalysisStarted(fileInfo) {
     animations: 0,
     graphs: 0,
     hints: 0,
-    hintLevels: []
+    hintLevels: [],
+    smartVisuals: 0,
+    visualTypes: []
   }
   
   // Reset question loop tracking
@@ -781,6 +877,22 @@ function handleAnalysisResult(data) {
   )
   graphLoading.value = response.value.map(task =>
     (task.subtasks || []).map(() => false)
+  )
+  // Phase 2: Initialize smart visual arrays
+  smartVisuals.value = response.value.map(task =>
+    (task.subtasks || []).map(() => null)
+  )
+  smartVisualLoading.value = response.value.map(task =>
+    (task.subtasks || []).map(() => false)
+  )
+  smartVisualTypes.value = response.value.map(task =>
+    (task.subtasks || []).map(() => null)
+  )
+  previousVisuals.value = response.value.map(task =>
+    (task.subtasks || []).map(() => [])
+  )
+  subtaskStartTime.value = response.value.map(task =>
+    (task.subtasks || []).map(() => Date.now())
   )
   currentQuestionIndex.value = response.value.map(task =>
     (task.subtasks || []).map(() => 0)  // Start with first question
@@ -1260,6 +1372,348 @@ async function toggleGraph(taskIndex, subIndex, task, subtask) {
   }
 }
 
+/* ============================================================================
+ * PHASE 2: Smart Visual System
+ * Uses AI to intelligently select the best visual aid for each task
+ * ============================================================================*/
+
+/**
+ * Request a smart visual hint - AI selects the best visualization type
+ */
+async function requestSmartVisual(taskIndex, subIndex, task, subtask) {
+  // Initialize arrays if needed
+  if (!smartVisuals.value[taskIndex]) smartVisuals.value[taskIndex] = []
+  if (!smartVisualLoading.value[taskIndex]) smartVisualLoading.value[taskIndex] = []
+  if (!previousVisuals.value[taskIndex]) previousVisuals.value[taskIndex] = []
+  if (!subtaskStartTime.value[taskIndex]) subtaskStartTime.value[taskIndex] = []
+  
+  // If visual already shown, request a different type
+  if (smartVisuals.value[taskIndex][subIndex]) {
+    const currentType = smartVisuals.value[taskIndex][subIndex].type
+    if (!previousVisuals.value[taskIndex][subIndex]) {
+      previousVisuals.value[taskIndex][subIndex] = []
+    }
+    previousVisuals.value[taskIndex][subIndex].push(currentType)
+  }
+  
+  smartVisualLoading.value[taskIndex][subIndex] = true
+  
+  try {
+    // Calculate student progress
+    const startTime = subtaskStartTime.value[taskIndex]?.[subIndex] || Date.now()
+    const timeSpent = Math.floor((Date.now() - startTime) / 1000) // seconds
+    
+    const studentProgress = {
+      timeSpent,
+      hintsUsed: hintsUsed.value[taskIndex]?.[subIndex] || 0,
+      questionsViewed: questionLoopTracking.value[taskIndex]?.[subIndex]?.totalRefreshes || 0
+    }
+    
+    // Use the smart visual service to select best type
+    const context = {
+      taskText: task.task,
+      subtaskText: subtask.task,
+      topic: task.topic,
+      learnerType: 'visual', // Could be from user profile in future
+      studentProgress,
+      previousVisuals: previousVisuals.value[taskIndex]?.[subIndex] || []
+    }
+    
+    const selection = visualHintService.selectBestVisual(context)
+    
+    console.log('[SMART VISUAL] Selected:', selection.type, '-', selection.reason)
+    
+    // Fetch the appropriate visual from backend
+    const endpoint = selection.endpoint
+    
+    const res = await fetch(
+      `http://127.0.0.1:8000${endpoint}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskNumber: task.number,
+          topic: task.topic,
+          taskText: task.task,
+          subLabel: subtask.label,
+          subtaskText: subtask.task
+        })
+      }
+    )
+    
+    if (!res.ok) {
+      throw new Error('Serverfehler beim Laden der Visualisierung.')
+    }
+    
+    const data = await res.json()
+    
+    if (data.error) {
+      throw new Error(data.error)
+    }
+    
+    // Process response based on type
+    let visualData = null
+    let playing = false
+    
+    if (selection.type === VISUAL_TYPES.GRAPH) {
+      if (data.plottable === false) {
+        // Fall back to key facts if graph not possible
+        selection.type = VISUAL_TYPES.KEY_FACTS
+        selection.reason = data.message || 'Grafik nicht verfügbar - Schlüsselfakten anzeigen'
+        
+        // Fetch key facts instead
+        const keyFactsRes = await fetch(
+          'http://127.0.0.1:8000/visualize',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              taskNumber: task.number,
+              topic: task.topic,
+              taskText: task.task,
+              subLabel: subtask.label,
+              subtaskText: subtask.task
+            })
+          }
+        )
+        const keyFactsData = await keyFactsRes.json()
+        visualData = keyFactsData.visualization || 'Keine Visualisierung verfügbar.'
+      } else {
+        visualData = data.plotData
+      }
+    } else if (selection.type === VISUAL_TYPES.ANIMATION) {
+      visualData = data.animationData
+      playing = false
+    } else {
+      // Key facts / visualization
+      visualData = data.visualization || 'Keine Visualisierung verfügbar.'
+    }
+    
+    // Store the result
+    smartVisuals.value[taskIndex][subIndex] = {
+      type: selection.type,
+      data: visualData,
+      reason: selection.reason,
+      playing
+    }
+    
+    // Track usage
+    usageStats.value.smartVisuals++
+    usageStats.value.visualTypes.push(selection.type)
+    
+    toast.success(visualHintService.getVisualLabel(selection.type), {
+      description: selection.reason
+    })
+    
+    // Render the visual after DOM update
+    await nextTick()
+    
+    if (selection.type === VISUAL_TYPES.GRAPH && visualData) {
+      setTimeout(() => renderSmartGraph(taskIndex, subIndex), 100)
+    } else if (selection.type === VISUAL_TYPES.ANIMATION && visualData) {
+      setTimeout(() => playSmartAnimation(taskIndex, subIndex), 300)
+    }
+    
+  } catch (err) {
+    console.error('[SMART VISUAL] Error:', err)
+    toast.error('Fehler beim Laden der Visualisierung', {
+      description: err.message
+    })
+  } finally {
+    smartVisualLoading.value[taskIndex][subIndex] = false
+  }
+}
+
+/**
+ * Get title for smart visual type
+ */
+function getSmartVisualTitle(type) {
+  const titles = {
+    [VISUAL_TYPES.GRAPH]: '📊 Interaktive Grafik',
+    [VISUAL_TYPES.ANIMATION]: '🎬 Schrittweise Animation',
+    [VISUAL_TYPES.KEY_FACTS]: '💡 Schlüsselfakten',
+    [VISUAL_TYPES.FORMULA]: '📐 Formelübersicht',
+    [VISUAL_TYPES.DIAGRAM]: '📝 Konzeptdiagramm'
+  }
+  return titles[type] || '💡 Visuelle Hilfe'
+}
+
+/**
+ * Get badge text for smart visual type
+ */
+function getSmartVisualBadge(type) {
+  const badges = {
+    [VISUAL_TYPES.GRAPH]: 'Interaktiv',
+    [VISUAL_TYPES.ANIMATION]: 'Animiert',
+    [VISUAL_TYPES.KEY_FACTS]: 'Fakten',
+    [VISUAL_TYPES.FORMULA]: 'Formeln',
+    [VISUAL_TYPES.DIAGRAM]: 'Diagramm'
+  }
+  return badges[type] || 'Visuell'
+}
+
+/**
+ * Render a smart graph using Plotly
+ */
+function renderSmartGraph(taskIndex, subIndex) {
+  const smartVisual = smartVisuals.value[taskIndex]?.[subIndex]
+  if (!smartVisual || smartVisual.type !== VISUAL_TYPES.GRAPH || !smartVisual.data) return
+  
+  const plotId = `smart-graph-${taskIndex}-${subIndex}`
+  const container = document.getElementById(plotId)
+  
+  if (!container) {
+    console.error(`Smart graph container not found: ${plotId}`)
+    return
+  }
+  
+  try {
+    const plotData = JSON.parse(smartVisual.data)
+    
+    Plotly.newPlot(
+      container,
+      plotData.data,
+      plotData.layout,
+      {
+        responsive: true,
+        displayModeBar: true,
+        modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+        displaylogo: false
+      }
+    )
+    
+  } catch (e) {
+    console.error('Error rendering smart graph:', e)
+    toast.error('Fehler beim Rendern der Grafik')
+  }
+}
+
+/**
+ * Play a smart animation using GSAP + KaTeX
+ */
+async function playSmartAnimation(taskIndex, subIndex) {
+  const smartVisual = smartVisuals.value[taskIndex]?.[subIndex]
+  if (!smartVisual || smartVisual.type !== VISUAL_TYPES.ANIMATION || !smartVisual.data) return
+  
+  const animId = `smart-anim-${taskIndex}-${subIndex}`
+  
+  await nextTick()
+  
+  const container = document.getElementById(animId)
+  if (!container) return
+  
+  // Mark as playing
+  smartVisuals.value[taskIndex][subIndex].playing = true
+  
+  // Clear container
+  container.innerHTML = ''
+  
+  const { title, steps } = smartVisual.data
+  
+  // Create title
+  const titleEl = document.createElement('div')
+  titleEl.className = 'anim-title'
+  titleEl.textContent = title
+  container.appendChild(titleEl)
+  
+  gsap.from(titleEl, { opacity: 0, y: -20, duration: 0.8 })
+  
+  // Create step container
+  const stepsContainer = document.createElement('div')
+  stepsContainer.className = 'anim-steps-container'
+  container.appendChild(stepsContainer)
+  
+  // Animate each step
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i]
+    
+    await new Promise(resolve => setTimeout(resolve, i === 0 ? 1000 : 500))
+    
+    // Create step element
+    const stepEl = document.createElement('div')
+    stepEl.className = 'anim-step'
+    stepEl.id = `${animId}-step-${step.id}`
+    
+    // Add description
+    const descEl = document.createElement('div')
+    descEl.className = 'anim-description'
+    descEl.textContent = step.description
+    stepEl.appendChild(descEl)
+    
+    // Add LaTeX equation
+    if (step.latex) {
+      const latexEl = document.createElement('div')
+      latexEl.className = 'anim-latex'
+      
+      try {
+        const rendered = katex.renderToString(step.latex, {
+          displayMode: true,
+          throwOnError: false
+        })
+        latexEl.innerHTML = rendered
+      } catch (e) {
+        latexEl.textContent = step.latex
+      }
+      
+      stepEl.appendChild(latexEl)
+    }
+    
+    stepsContainer.appendChild(stepEl)
+    
+    // Apply animation based on type
+    const duration = step.duration || 1.0
+    
+    switch (step.animation) {
+      case 'fadeIn':
+        gsap.from(stepEl, { opacity: 0, duration })
+        break
+      case 'fadeOut':
+        gsap.to(stepEl, { opacity: 0, duration })
+        break
+      case 'scale':
+        gsap.from(stepEl, { scale: 0, duration, ease: 'back.out(1.7)' })
+        break
+      case 'bounce':
+        gsap.from(stepEl, { y: -50, duration, ease: 'bounce.out' })
+        break
+      case 'highlight':
+        gsap.from(stepEl, { 
+          backgroundColor: '#fef08a', 
+          duration, 
+          repeat: 1, 
+          yoyo: true 
+        })
+        break
+      case 'transform':
+        gsap.from(stepEl, { 
+          opacity: 0, 
+          scale: 0.8, 
+          rotation: 5, 
+          duration, 
+          ease: 'power2.out' 
+        })
+        break
+      default:
+        gsap.from(stepEl, { opacity: 0, y: 20, duration })
+    }
+  }
+  
+  // Mark as done
+  setTimeout(() => {
+    if (smartVisuals.value[taskIndex]?.[subIndex]) {
+      smartVisuals.value[taskIndex][subIndex].playing = false
+    }
+  }, steps.length * 1000 + 2000)
+}
+
+/**
+ * Replay a smart animation
+ */
+function replaySmartAnimation(taskIndex, subIndex) {
+  playSmartAnimation(taskIndex, subIndex)
+  toast.info('Animation wird wiederholt')
+}
+
 /* ----------------------------------------------------------------------------
  * Render Plot with Plotly.js
  * --------------------------------------------------------------------------*/
@@ -1695,6 +2149,41 @@ body {
   transform: translateY(-1px);
 }
 
+/* Phase 2: Smart Visual Button */
+.smart-visual-btn {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3);
+  flex: 2; /* Make it slightly larger to indicate primary action */
+}
+
+.smart-visual-btn:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.smart-visual-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.loading-dots {
+  display: inline-block;
+}
+
+.loading-dots::after {
+  content: '';
+  animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+  0%, 20% { content: ''; }
+  40% { content: '.'; }
+  60% { content: '..'; }
+  80%, 100% { content: '...'; }
+}
+
 .action-btn:active {
   transform: scale(0.98);
 }
@@ -1718,6 +2207,127 @@ body {
   gap: 1rem;
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
   border: 2px solid #f59e0b;
+}
+
+/* Phase 2: Smart Visual Loading & Box */
+.smart-visual-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+  border: 2px solid #a78bfa;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  color: #5b21b6;
+}
+
+.smart-visual-box {
+  margin-top: 1.25rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+  border: 2px solid #c4b5fd;
+  border-left: 5px solid #8b5cf6;
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow-md);
+  position: relative;
+}
+
+.smart-visual-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(to right, #8b5cf6 0%, transparent 50%);
+}
+
+/* Type-specific styling */
+.smart-visual-box.visual-type-graph {
+  border-left-color: #10b981;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border-color: #86efac;
+}
+
+.smart-visual-box.visual-type-animation {
+  border-left-color: #ec4899;
+  background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%);
+  border-color: #fbcfe8;
+}
+
+.smart-visual-box.visual-type-key_facts {
+  border-left-color: #6366f1;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  border-color: #c7d2fe;
+}
+
+.smart-visual-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid rgba(139, 92, 246, 0.3);
+}
+
+.smart-visual-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #5b21b6;
+  margin: 0;
+}
+
+.visual-type-badge {
+  font-size: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  color: white;
+}
+
+.visual-type-graph .visual-type-badge {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.visual-type-animation .visual-type-badge {
+  background: linear-gradient(135deg, #ec4899 0%, #f43f5e 100%);
+}
+
+.visual-type-key_facts .visual-type-badge {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+}
+
+.visual-reason {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0 0 1rem 0;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 0.25rem;
+  font-style: italic;
+  border-left: 3px solid rgba(139, 92, 246, 0.5);
+}
+
+.smart-visual-content {
+  margin-top: 1rem;
+}
+
+.smart-visual-content .graph-container,
+.smart-visual-content .animation-canvas {
+  background: white;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.smart-visual-content .replay-btn {
+  margin-top: 1rem;
 }
 
 .animation-loading,

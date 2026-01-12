@@ -24,17 +24,17 @@ export const FEATURE_FLAGS = {
    * Legacy visual buttons (3 separate buttons)
    * Set to true for rollback if needed
    */
-  legacyVisualButtons: true,  // Currently using separate buttons
+  legacyVisualButtons: false,  // DISABLED - Using unified smart visual
   
   // ============================================================
-  // Phase 2: Feature Consolidation (PENDING)
+  // Phase 2: Feature Consolidation (ACTIVE)
   // ============================================================
   
   /**
    * Smart Visual Hint: Unified visual button that intelligently
    * selects the best visual aid based on task type
    */
-  smartVisualHint: false,  // Enable after Phase 2 implementation
+  smartVisualHint: true,  // ACTIVE - Phase 2 Implementation
   
   /**
    * Use lightweight charts (Recharts) instead of Plotly
