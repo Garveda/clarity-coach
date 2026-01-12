@@ -168,35 +168,49 @@ const subtaskStartTime = ref([])      // When subtask was viewed
 
 ---
 
-## Next Steps (Phase 2.2)
+## Phase 2.2: Replace Plotly with Chart.js ✅ COMPLETE
 
-### Pending: Replace Plotly with Lightweight Alternative
+### Bundle Size Improvement
 
-**Current bundle size issue:**
-- `plotly.js-dist-min`: ~2.35MB
+| Library | Before | After | Savings |
+|---------|--------|-------|---------|
+| plotly.js-dist-min | ~2.35MB | 0 | -2.35MB |
+| chart.js | 0 | ~200KB | +200KB |
+| **Net Savings** | - | - | **~2.15MB** |
 
-**Options:**
-1. **Recharts** (~300KB) - React-based, would need adaptation for Vue
-2. **Chart.js** (~200KB) - Framework agnostic, good option
-3. **Canvas API** (~0KB) - Native, most lightweight
-4. **uPlot** (~25KB) - Ultra lightweight, good for functions
+### Changes Made
 
-**Recommendation:** Use **Chart.js** or custom **Canvas API** for function plots.
+**Backend (`main.py`):**
+- Removed `plotly.graph_objects` and `plotly.express` imports
+- Modified `/plot` endpoint to return Chart.js compatible JSON format
+- Data format: `{ type, data: { datasets: [...] }, options: {...} }`
+
+**Frontend (`ClarityCoach.vue`):**
+- Replaced `import Plotly from 'plotly.js-dist-min'` with `import { Chart, registerables } from 'chart.js'`
+- Added `chartInstances` ref to track Chart.js instances for cleanup
+- Updated `renderPlot()` to use `new Chart(ctx, config)`
+- Updated `renderSmartGraph()` to use Chart.js
+- Canvas-based rendering instead of Plotly's div-based
+
+**Package.json:**
+- Removed: `"plotly.js-dist-min": "^2.35.3"`
+- Added: `"chart.js": "^4.5.1"`
 
 ---
 
 ## Testing Checklist
 
 - [ ] Upload a PDF and verify single "💡 Visuelle Hilfe" button appears
-- [ ] Click button on polynomial task → Should show Graph
+- [ ] Click button on polynomial task → Should show Graph (Chart.js)
 - [ ] Click button on derivative task → Should show Graph or Animation
 - [ ] Wait 3+ minutes, click again → May switch to Animation
 - [ ] Click "Andere Visualisierung" → Should show different type
 - [ ] Verify color-coded visual boxes appear correctly
 - [ ] Check that reason text explains why visual was chosen
+- [ ] Verify graph interactions (zoom, hover tooltips)
 
 ---
 
-**Phase 2.1 Status: ✅ COMPLETE**
+**Phase 2 Status: ✅ FULLY COMPLETE**
 
-*Pending: Phase 2.2 (Replace Plotly)*
+*Both Phase 2.1 (Smart Visual) and Phase 2.2 (Chart.js) are complete.*

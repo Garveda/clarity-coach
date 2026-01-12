@@ -10,10 +10,9 @@ import fitz  # PyMuPDF
 from openai import OpenAI
 from dotenv import load_dotenv
 from io import BytesIO
-import plotly.graph_objects as go
-import plotly.express as px
 import numpy as np
 import re
+# Note: Plotly removed in Phase 2.2 - using Chart.js in frontend (lighter weight)
 from datetime import datetime
 from openpyxl import load_workbook
 from openpyxl.styles import Border, Side, Alignment
@@ -813,31 +812,30 @@ Gib NUR das JSON zurück, keine Erklärungen, keine Markdown-Codeblöcke.
                 "message": plot_data.get("reason", "Keine grafische Darstellung möglich für diese Aufgabe")
             }
         
-        # Generate plot based on graphType
+        # Generate plot based on graphType - using Chart.js format (Phase 2.2)
         graph_type = plot_data.get("graphType", "function")
         
-        print(f"[PLOT] Generating {graph_type} plot...")
+        print(f"[PLOT] Generating {graph_type} plot for Chart.js...")
         
         if graph_type in ["function", "polynomial", "line"]:
-            # Function plot
+            # Function plot - generate data points for Chart.js
             func_str = plot_data.get("function", "x")
             domain = plot_data.get("domain", {"xMin": -10, "xMax": 10, "yMin": -50, "yMax": 50})
             
-            # Generate x values
-            x = np.linspace(domain.get("xMin", -10), domain.get("xMax", 10), 500)
+            # Generate x values (100 points for smooth curve, less than Plotly's 500)
+            x_values = np.linspace(domain.get("xMin", -10), domain.get("xMax", 10), 100)
             
             # Evaluate function safely
             try:
                 # Replace common math notation
                 func_str_safe = func_str.replace("^", "**").replace("π", "np.pi").replace("e", "np.e")
                 
-                # Check if function has undefined variables (like a, b, c for generic polynomials)
-                # Try to evaluate with a test value first
+                # Check if function has undefined variables
                 test_x = np.array([1.0])
                 test_eval = eval(func_str_safe, {"x": test_x, "np": np, "__builtins__": {}})
                 
-                # If successful, evaluate for full domain
-                y = eval(func_str_safe, {"x": x, "np": np, "__builtins__": {}})
+                # Evaluate for full domain
+                y_values = eval(func_str_safe, {"x": x_values, "np": np, "__builtins__": {}})
             except (NameError, SyntaxError) as e:
                 print(f"[ERROR] Function contains undefined variables or syntax error: {e}")
                 return {
@@ -851,77 +849,135 @@ Gib NUR das JSON zurück, keine Erklärungen, keine Markdown-Codeblöcke.
                     "message": f"Konnte Funktion nicht auswerten: {str(e)}"
                 }
             
-            # Create plot
-            fig = go.Figure()
+            # Convert numpy arrays to lists and create Chart.js data format
+            # Create xy pairs for scatter chart (line type)
+            data_points = [{"x": float(x), "y": float(y)} for x, y in zip(x_values, y_values) if np.isfinite(y)]
             
-            # Add main function
-            fig.add_trace(go.Scatter(
-                x=x,
-                y=y,
-                mode='lines',
-                name=plot_data.get("title", "f(x)"),
-                line=dict(color='#2c5f8d', width=3)
-            ))
+            # Prepare special points (nullstellen, extrema, etc.)
+            special_points_data = []
+            for point in plot_data.get("specialPoints", []):
+                special_points_data.append({
+                    "x": point.get("x"),
+                    "y": point.get("y"),
+                    "label": point.get("label", ""),
+                    "color": point.get("color", "#ef4444")  # Default red
+                })
             
-            # Add special points (nullstellen, extrema, etc.)
-            special_points = plot_data.get("specialPoints", [])
-            for point in special_points:
-                fig.add_trace(go.Scatter(
-                    x=[point.get("x")],
-                    y=[point.get("y")],
-                    mode='markers+text',
-                    name=point.get("label", "Punkt"),
-                    marker=dict(size=12, color=point.get("color", "red")),
-                    text=[point.get("label", "")],
-                    textposition="top center"
-                ))
+            # Prepare given points
+            points_data = []
+            for point in plot_data.get("points", []):
+                points_data.append({
+                    "x": point.get("x"),
+                    "y": point.get("y"),
+                    "label": point.get("label", ""),
+                    "color": "#10b981"  # Green
+                })
             
-            # Add given points
-            points = plot_data.get("points", [])
-            for point in points:
-                fig.add_trace(go.Scatter(
-                    x=[point.get("x")],
-                    y=[point.get("y")],
-                    mode='markers+text',
-                    name=point.get("label", "Punkt"),
-                    marker=dict(size=10, color='green'),
-                    text=[point.get("label", "")],
-                    textposition="top center"
-                ))
+            # Chart.js configuration
+            chart_config = {
+                "type": "scatter",
+                "data": {
+                    "datasets": [
+                        {
+                            "label": plot_data.get("title", "f(x)"),
+                            "data": data_points,
+                            "borderColor": "#2c5f8d",
+                            "backgroundColor": "rgba(44, 95, 141, 0.1)",
+                            "borderWidth": 2,
+                            "pointRadius": 0,
+                            "showLine": True,
+                            "tension": 0.1,
+                            "fill": False
+                        }
+                    ]
+                },
+                "options": {
+                    "responsive": True,
+                    "maintainAspectRatio": False,
+                    "plugins": {
+                        "title": {
+                            "display": True,
+                            "text": plot_data.get("title", "Grafik"),
+                            "font": {"size": 16, "weight": "bold"}
+                        },
+                        "legend": {
+                            "display": True,
+                            "position": "top"
+                        },
+                        "tooltip": {
+                            "enabled": True,
+                            "mode": "nearest",
+                            "intersect": False
+                        }
+                    },
+                    "scales": {
+                        "x": {
+                            "type": "linear",
+                            "position": "center",
+                            "title": {
+                                "display": True,
+                                "text": plot_data.get("xLabel", "x")
+                            },
+                            "min": domain.get("xMin", -10),
+                            "max": domain.get("xMax", 10),
+                            "grid": {
+                                "color": "rgba(0, 0, 0, 0.1)"
+                            }
+                        },
+                        "y": {
+                            "type": "linear",
+                            "position": "center",
+                            "title": {
+                                "display": True,
+                                "text": plot_data.get("yLabel", "y")
+                            },
+                            "min": domain.get("yMin", -50),
+                            "max": domain.get("yMax", 50),
+                            "grid": {
+                                "color": "rgba(0, 0, 0, 0.1)"
+                            }
+                        }
+                    },
+                    "interaction": {
+                        "mode": "nearest",
+                        "axis": "x",
+                        "intersect": False
+                    }
+                },
+                "specialPoints": special_points_data,
+                "givenPoints": points_data
+            }
             
-            # Update layout
-            fig.update_layout(
-                title=plot_data.get("title", "Grafik"),
-                xaxis_title=plot_data.get("xLabel", "x"),
-                yaxis_title=plot_data.get("yLabel", "y"),
-                hovermode='x unified',
-                template='plotly_white',
-                height=500,
-                showlegend=True,
-                xaxis=dict(
-                    zeroline=True,
-                    zerolinewidth=2,
-                    zerolinecolor='gray',
-                    gridcolor='lightgray'
-                ),
-                yaxis=dict(
-                    zeroline=True,
-                    zerolinewidth=2,
-                    zerolinecolor='gray',
-                    gridcolor='lightgray',
-                    range=[domain.get("yMin", -50), domain.get("yMax", 50)]
-                )
-            )
+            # Add special points as separate datasets
+            if special_points_data:
+                chart_config["data"]["datasets"].append({
+                    "label": "Besondere Punkte",
+                    "data": [{"x": p["x"], "y": p["y"]} for p in special_points_data],
+                    "borderColor": "#ef4444",
+                    "backgroundColor": "#ef4444",
+                    "pointRadius": 8,
+                    "pointHoverRadius": 10,
+                    "showLine": False
+                })
             
-            # Convert to JSON data for frontend rendering
-            plot_json = fig.to_json()
+            if points_data:
+                chart_config["data"]["datasets"].append({
+                    "label": "Gegebene Punkte",
+                    "data": [{"x": p["x"], "y": p["y"]} for p in points_data],
+                    "borderColor": "#10b981",
+                    "backgroundColor": "#10b981",
+                    "pointRadius": 8,
+                    "pointHoverRadius": 10,
+                    "showLine": False
+                })
             
-            print("[PLOT] Plot generated successfully!")
+            print("[PLOT] Chart.js data generated successfully!")
             
             return {
-                "plotData": plot_json,
+                "plotData": json.dumps(chart_config),
                 "plottable": True,
-                "graphType": graph_type
+                "graphType": graph_type,
+                "chartType": "chartjs"  # Indicator for frontend
             }
         
         elif graph_type == "points":
@@ -934,48 +990,72 @@ Gib NUR das JSON zurück, keine Erklärungen, keine Markdown-Codeblöcke.
                     "message": "Keine Punkte zum Plotten vorhanden"
                 }
             
-            fig = go.Figure()
-            
-            for point in points:
-                fig.add_trace(go.Scatter(
-                    x=[point.get("x")],
-                    y=[point.get("y")],
-                    mode='markers+text',
-                    name=point.get("label", "Punkt"),
-                    marker=dict(size=12, color='#2c5f8d'),
-                    text=[point.get("label", "")],
-                    textposition="top center"
-                ))
-            
             domain = plot_data.get("domain", {"xMin": -10, "xMax": 10, "yMin": -10, "yMax": 10})
             
-            fig.update_layout(
-                title=plot_data.get("title", "Punkte"),
-                xaxis_title=plot_data.get("xLabel", "x"),
-                yaxis_title=plot_data.get("yLabel", "y"),
-                template='plotly_white',
-                height=500,
-                showlegend=True,
-                xaxis=dict(
-                    range=[domain.get("xMin", -10), domain.get("xMax", 10)],
-                    zeroline=True,
-                    zerolinewidth=2,
-                    zerolinecolor='gray'
-                ),
-                yaxis=dict(
-                    range=[domain.get("yMin", -10), domain.get("yMax", 10)],
-                    zeroline=True,
-                    zerolinewidth=2,
-                    zerolinecolor='gray'
-                )
-            )
+            # Prepare points data
+            points_data = [{"x": p.get("x"), "y": p.get("y")} for p in points]
+            point_labels = [p.get("label", f"P{i+1}") for i, p in enumerate(points)]
             
-            plot_json = fig.to_json()
+            chart_config = {
+                "type": "scatter",
+                "data": {
+                    "datasets": [{
+                        "label": plot_data.get("title", "Punkte"),
+                        "data": points_data,
+                        "borderColor": "#2c5f8d",
+                        "backgroundColor": "#2c5f8d",
+                        "pointRadius": 8,
+                        "pointHoverRadius": 10,
+                        "showLine": False
+                    }]
+                },
+                "options": {
+                    "responsive": True,
+                    "maintainAspectRatio": False,
+                    "plugins": {
+                        "title": {
+                            "display": True,
+                            "text": plot_data.get("title", "Punkte"),
+                            "font": {"size": 16, "weight": "bold"}
+                        },
+                        "tooltip": {
+                            "enabled": True,
+                            "callbacks": {}  # Will use default
+                        }
+                    },
+                    "scales": {
+                        "x": {
+                            "type": "linear",
+                            "position": "center",
+                            "title": {
+                                "display": True,
+                                "text": plot_data.get("xLabel", "x")
+                            },
+                            "min": domain.get("xMin", -10),
+                            "max": domain.get("xMax", 10),
+                            "grid": {"color": "rgba(0, 0, 0, 0.1)"}
+                        },
+                        "y": {
+                            "type": "linear", 
+                            "position": "center",
+                            "title": {
+                                "display": True,
+                                "text": plot_data.get("yLabel", "y")
+                            },
+                            "min": domain.get("yMin", -10),
+                            "max": domain.get("yMax", 10),
+                            "grid": {"color": "rgba(0, 0, 0, 0.1)"}
+                        }
+                    }
+                },
+                "pointLabels": point_labels
+            }
             
             return {
-                "plotData": plot_json,
+                "plotData": json.dumps(chart_config),
                 "plottable": True,
-                "graphType": graph_type
+                "graphType": graph_type,
+                "chartType": "chartjs"
             }
         
         else:

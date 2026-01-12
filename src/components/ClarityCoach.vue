@@ -427,7 +427,9 @@ import { toast } from 'vue-sonner'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import gsap from 'gsap'
-import Plotly from 'plotly.js-dist-min'
+// Phase 2.2: Replaced Plotly (~2.35MB) with Chart.js (~200KB)
+import { Chart, registerables } from 'chart.js'
+Chart.register(...registerables)
 import { FEATURE_FLAGS } from '../config/featureFlags.js'
 import { visualHintService, VISUAL_TYPES } from '../services/visualHintService.js'
 
@@ -463,9 +465,10 @@ const visualizationLoading = ref([])  // [ [bool, ...], ... ]
 const animations = ref([])            // [ [string|null, ...], ... ]
 const animationLoading = ref([])      // [ [bool, ...], ... ]
 
-// Graphs (Plotly) & Ladezustand je Teilaufgabe
-const graphs = ref([])                // [ [string|null, ...], ... ]
+// Graphs (Chart.js - Phase 2.2) & Ladezustand je Teilaufgabe
+const graphs = ref([])                // [ [{ data, chartInstance }|null, ...], ... ]
 const graphLoading = ref([])          // [ [bool, ...], ... ]
+const chartInstances = ref({})        // { 'graph-0-0': Chart instance } - track for cleanup
 
 // Unified Smart Visual System (Phase 2)
 const smartVisuals = ref([])          // [ [{ type, data, label }|null, ...], ... ]
@@ -1553,7 +1556,7 @@ function getSmartVisualBadge(type) {
 }
 
 /**
- * Render a smart graph using Plotly
+ * Render a smart graph using Chart.js (Phase 2.2 - Replaced Plotly)
  */
 function renderSmartGraph(taskIndex, subIndex) {
   const smartVisual = smartVisuals.value[taskIndex]?.[subIndex]
@@ -1568,20 +1571,36 @@ function renderSmartGraph(taskIndex, subIndex) {
   }
   
   try {
-    const plotData = JSON.parse(smartVisual.data)
+    // Destroy existing chart if any
+    const existingKey = `smart-${taskIndex}-${subIndex}`
+    if (chartInstances.value[existingKey]) {
+      chartInstances.value[existingKey].destroy()
+      delete chartInstances.value[existingKey]
+    }
     
-    Plotly.newPlot(
-      container,
-      plotData.data,
-      plotData.layout,
-      {
-        responsive: true,
-        displayModeBar: true,
-        modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-        displaylogo: false
-      }
-    )
+    // Clear container and create canvas
+    container.innerHTML = ''
+    const canvas = document.createElement('canvas')
+    canvas.id = `smart-chart-${taskIndex}-${subIndex}`
+    canvas.style.width = '100%'
+    canvas.style.height = '400px'
+    container.appendChild(canvas)
     
+    // Parse the Chart.js config from backend
+    const chartConfig = JSON.parse(smartVisual.data)
+    
+    // Create the chart
+    const ctx = canvas.getContext('2d')
+    const chartInstance = new Chart(ctx, {
+      type: chartConfig.type || 'scatter',
+      data: chartConfig.data,
+      options: chartConfig.options
+    })
+    
+    // Store instance for cleanup
+    chartInstances.value[existingKey] = chartInstance
+    
+    console.log('[CHART.JS] Smart graph rendered successfully')
   } catch (e) {
     console.error('Error rendering smart graph:', e)
     toast.error('Fehler beim Rendern der Grafik')
@@ -1715,7 +1734,7 @@ function replaySmartAnimation(taskIndex, subIndex) {
 }
 
 /* ----------------------------------------------------------------------------
- * Render Plot with Plotly.js
+ * Render Plot with Chart.js (Phase 2.2 - Replaced Plotly)
  * --------------------------------------------------------------------------*/
 function renderPlot(taskIndex, subIndex) {
   const graph = graphs.value[taskIndex]?.[subIndex]
@@ -1730,25 +1749,41 @@ function renderPlot(taskIndex, subIndex) {
   }
   
   try {
-    const plotData = JSON.parse(graph.data)
+    // Destroy existing chart if any
+    const existingKey = `${taskIndex}-${subIndex}`
+    if (chartInstances.value[existingKey]) {
+      chartInstances.value[existingKey].destroy()
+      delete chartInstances.value[existingKey]
+    }
     
-    // Render with Plotly
-    Plotly.newPlot(
-      container,
-      plotData.data,
-      plotData.layout,
-      {
-        responsive: true,
-        displayModeBar: true,
-        modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-        displaylogo: false
-      }
-    )
+    // Clear container and create canvas
+    container.innerHTML = ''
+    const canvas = document.createElement('canvas')
+    canvas.id = `chart-${taskIndex}-${subIndex}`
+    canvas.style.width = '100%'
+    canvas.style.height = '400px'
+    container.appendChild(canvas)
+    
+    // Parse the Chart.js config from backend
+    const chartConfig = JSON.parse(graph.data)
+    
+    // Create the chart
+    const ctx = canvas.getContext('2d')
+    const chartInstance = new Chart(ctx, {
+      type: chartConfig.type || 'scatter',
+      data: chartConfig.data,
+      options: chartConfig.options
+    })
+    
+    // Store instance for cleanup
+    chartInstances.value[existingKey] = chartInstance
     
     // Mark as rendered
     graphs.value[taskIndex][subIndex].rendered = true
+    
+    console.log('[CHART.JS] Graph rendered successfully')
   } catch (e) {
-    console.error('Error rendering plot:', e)
+    console.error('Error rendering Chart.js plot:', e)
     toast.error('Fehler beim Rendern der Grafik')
   }
 }

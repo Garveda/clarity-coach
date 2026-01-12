@@ -37,10 +37,10 @@ export const FEATURE_FLAGS = {
   smartVisualHint: true,  // ACTIVE - Phase 2 Implementation
   
   /**
-   * Use lightweight charts (Recharts) instead of Plotly
-   * Reduces bundle size from ~2MB to ~300KB
+   * Use lightweight charts (Chart.js) instead of Plotly
+   * Reduces bundle size from ~2.35MB to ~200KB
    */
-  useLightweightCharts: false,  // Enable after library swap
+  useLightweightCharts: true,  // ACTIVE - Phase 2.2 Complete
   
   // ============================================================
   // Phase 3: Smart Enhancements (ACTIVE)
