@@ -247,98 +247,146 @@ def clarity(input: dict = Body(...)):
 
 
 # ------------------------------
-# Lösung für eine Teilaufgabe generieren
+# REMOVED: Lösung für eine Teilaufgabe generieren
+# This endpoint has been REMOVED because it directly contradicts
+# the Socratic method. Showing full solutions creates learned helplessness
+# and makes assessment impossible.
+# 
+# REPLACED BY: /hint endpoint (Progressive Hint System)
 # ------------------------------
-@app.post("/solve")
-async def solve(payload: dict = Body(...)):
+
+
+# ------------------------------
+# Progressive Hint System (Socratic → Directive → Specific)
+# Replaces the old /solve endpoint
+# ------------------------------
+@app.post("/hint")
+async def get_hint(payload: dict = Body(...)):
+    """
+    Progressive hint system that guides students without revealing solutions.
+    
+    Hint Levels:
+    1. Socratic: Ask guiding questions that lead to understanding
+    2. Directive: Give specific steps to take without revealing answer
+    3. Specific: Provide targeted help for a specific aspect
+    """
     task_number = payload.get("taskNumber")
     task_text = payload.get("taskText", "")
     topic = payload.get("topic", "")
     sub_label = payload.get("subLabel")
     subtask_text = payload.get("subtaskText", "")
+    hint_level = payload.get("hintLevel", 1)
+    previous_hints = payload.get("previousHints", None)
 
     if not subtask_text or not str(subtask_text).strip():
         raise HTTPException(status_code=400, detail="Keine Teilaufgabe übergeben.")
 
-    solve_prompt = f"""
-Du bist ein präziser mathematischer Solver.
+    # Define hint strategies based on level
+    hint_strategies = {
+        1: """
+STUFE 1 - SOKRATISCHE FRAGE:
+Du stellst eine nachdenkliche Frage, die den Schüler zum Kern des Problems führt.
+Die Frage sollte:
+- NICHT die Lösung verraten
+- Den Schüler zum Nachdenken anregen
+- Sich auf ein konkretes Element der Aufgabe beziehen
+- Eine klare Richtung vorgeben, ohne zu direktiv zu sein
 
-Du sollst die folgende Teilaufgabe **vollständig lösen** und knapp begründen.
-Die Antwort wird im Frontend zeilenweise verarbeitet und mit KaTeX gerendert.
+Beispiel: "Was passiert mit der Gleichung, wenn du beide Seiten durch 3 teilst?"
+Beispiel: "Welche Eigenschaft hat f'(x) für alle x?"
+""",
+        2: """
+STUFE 2 - ANLEITENDER HINWEIS:
+Du gibst einen konkreten nächsten Schritt vor, ohne die Lösung zu verraten.
+Der Hinweis sollte:
+- Eine klare Handlungsanweisung geben
+- Den nächsten logischen Schritt beschreiben
+- NICHT das Ergebnis vorwegnehmen
 
-FORMATREGELN (sehr wichtig):
+Beispiel: "Berechne zuerst die Ableitung f'(x) und setze sie gleich null."
+Beispiel: "Forme die Gleichung so um, dass x³ allein steht."
+""",
+        3: """
+STUFE 3 - SPEZIFISCHE HILFE:
+Du gibst einen sehr konkreten Hinweis für den kritischen Schritt.
+Der Hinweis sollte:
+- Auf den schwierigsten Teil der Aufgabe eingehen
+- Eine Formel oder Methode nennen
+- IMMER NOCH NICHT die vollständige Lösung verraten
 
-1. Antworte NUR mit einfachem Text und LaTeX, keine Markdown-Codeblöcke, keine ```.
+Beispiel: "Wende die dritte Wurzel an: x = ∛27"
+Beispiel: "Bei f''(x) = 6x ist f''(x₁) = 0 für x₁ = 0 (Wendepunkt)"
+"""
+    }
 
-2. Jede logische Zeile der Lösung steht in einer eigenen Zeile.
-   Es gibt KEINE Aufzählungszeichen, KEINE Nummerierung und KEINE Einleitungen wie „Natürlich“ o.Ä.
+    hint_prompt = f"""
+Du bist ein sokratischer Mathematiklehrer, der Schülern hilft, SELBST zu verstehen.
 
-3. Verwende GENAU ZWEI Label-Zeilen:
-   - eine Zeile nur mit:  Lösung:
-   - eine spätere Zeile nur mit: Begründung:
+WICHTIG: Du darfst NIEMALS die vollständige Lösung verraten!
 
-4. Alle anderen Zeilen sind entweder
-   a) REINE Gleichungs-/Mathe-Zeilen:
-      - nur Symbole, Zahlen und LaTeX-Befehle (z.B. x^3 - 27 = 0, x^3 = 27, x = 3,
-        p(\\sqrt{{2/3}}) \\approx 4.39, \\Delta < 0, f'(x) = 3x^2, ...)
-      - KEINE deutschen Wörter in diesen Zeilen
-   b) oder kurze deutsche Textzeilen zur Erklärung,
-      z.B. „Es gibt genau eine reelle Lösung.“ oder
-      „Das Polynom ist streng monoton wachsend.“
+{hint_strategies.get(hint_level, hint_strategies[1])}
 
-5. Vermische KEINE deutschen Wörter mit LaTeX in derselben Zeile.
-   Wenn du etwas erklären willst, schreibe die Erklärung in einer eigenen Textzeile
-   ohne LaTeX-Befehle wie \\sqrt, \\frac, \\Rightarrow usw.
+**Aufgabe {task_number}: {topic}**
+Hauptaufgabe: {task_text}
 
-6. Verwende KEINE Dollarzeichen ($) und KEINE Umklammerung durch \\[...\\] oder \\(...\\).
-   Schreibe die LaTeX-Ausdrücke direkt in die Zeile, z.B.:
-   x^3 - 27 = 0
-   x^3 = 27
-   x = 3
-
-7. Insgesamt sollen es maximal 8–10 Zeilen sein.
-
-Beispiel für das gewünschte Format (nur als Orientierung):
-
-Lösung:
-x^3 - 27 = 0
-x^3 = 27
-x = 3
-
-Begründung:
-f(x) = x^3 - 27 ist streng monoton wachsend,
-daher gibt es genau eine reelle Lösung.
-
-Jetzt die konkrete Aufgabe:
-
-Thema (falls hilfreich): {topic}
-
-Übergeordnete Aufgabe {task_number}:
-{task_text}
-
-Teilaufgabe {sub_label}):
+**Teilaufgabe {sub_label}:**
 {subtask_text}
+
+{f"Vorherige Hilfestellung war: {previous_hints}" if previous_hints else ""}
+
+Gib deine Antwort im folgenden JSON-Format:
+{{
+  "hint": "Dein Hinweis hier (max 2-3 Sätze)",
+  "encouragement": "Ein aufmunternder Satz (z.B. 'Du bist auf dem richtigen Weg!')"
+}}
+
+REGELN:
+- Halte den Hinweis kurz und prägnant
+- Verwende $...$ für inline LaTeX wenn nötig
+- VERRATE NICHT DIE LÖSUNG
+- Gib Mut und Motivation
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Du bist ein hilfreicher, aber äußerst knapper Mathematiklehrer. "
-                    "Du hältst dich strikt an das geforderte Zeilenformat, "
-                    "verwendest keine Markdown-Codeblöcke und keine LaTeX-Delimiters wie $ oder \\[."
-                ),
-            },
-            {"role": "user", "content": solve_prompt},
-        ],
-    )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Du bist ein geduldiger, sokratischer Mathematiklehrer. "
+                        "Du hilfst Schülern, selbst zu verstehen, ohne die Lösung zu verraten."
+                    ),
+                },
+                {"role": "user", "content": hint_prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.7
+        )
 
-    solution_text = response.choices[0].message.content
+        hint_json_str = response.choices[0].message.content
+        
+        # Safe printing
+        try:
+            print(f"\n--- Hint Level {hint_level} Generated ---\n{hint_json_str[:200]}...\n")
+        except UnicodeEncodeError:
+            print(f"\n--- Hint Level {hint_level} Generated ---\n[Contains Unicode characters]\n")
 
-    # Wir verpacken einfach den Text in ein JSON-Feld
-    return {"solution": solution_text}
+        hint_data = json.loads(hint_json_str)
+        
+        return {
+            "hint": hint_data.get("hint", "Denke über die Grundlagen nach."),
+            "encouragement": hint_data.get("encouragement", "Du schaffst das!"),
+            "level": hint_level,
+            "success": True
+        }
+
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] Hint JSON Parse Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Hint generation failed: {str(e)}")
+    except Exception as e:
+        print(f"[ERROR] Error generating hint: {e}")
+        raise HTTPException(status_code=500, detail=f"Hint generation failed: {str(e)}")
 
 
 # ------------------------------
@@ -962,7 +1010,7 @@ class SessionLogEntry(BaseModel):
     visualisierungen_genutzt: int
     animationen_genutzt: int
     grafiken_genutzt: int
-    loesungen_angezeigt: int
+    hints_genutzt: int  # Replaced loesungen_angezeigt (solutions violated Socratic method)
     feedback: str
     sitzungsdauer_minuten: float
     notizen: str
@@ -1031,7 +1079,7 @@ async def log_session(entry: SessionLogEntry):
             entry.visualisierungen_genutzt,
             entry.animationen_genutzt,
             entry.grafiken_genutzt,
-            entry.loesungen_angezeigt,
+            entry.hints_genutzt,  # Replaced loesungen_angezeigt
             entry.feedback,
             entry.sitzungsdauer_minuten,
             entry.notizen

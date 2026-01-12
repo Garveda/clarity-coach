@@ -165,16 +165,16 @@
                 </span>
               </button>
 
-              <!-- Solution Button -->
+              <!-- Hint Button (Progressive Socratic Hints) -->
               <button
-                class="action-btn solution-btn"
-                @click="toggleSolution(tIndex, sIndex, task, sub)"
+                class="action-btn hint-btn"
+                @click="requestHint(tIndex, sIndex, task, sub)"
               >
-                <span v-if="solutions[tIndex]?.[sIndex]">
-                  Lösung ausblenden
+                <span v-if="hintLoading[tIndex]?.[sIndex]">
+                  Lädt...
                 </span>
                 <span v-else>
-                  Lösung anzeigen
+                  🤔 Hilfestellung ({{ hintsUsed[tIndex]?.[sIndex] || 0 }})
                 </span>
               </button>
             </div>
@@ -249,20 +249,41 @@
               ></div>
             </div>
 
-            <!-- Ladeanzeige für Lösung -->
+            <!-- Hint Loading -->
             <div
-              v-if="solutionLoading[tIndex]?.[sIndex]"
-              class="solution-loading"
+              v-if="hintLoading[tIndex]?.[sIndex]"
+              class="hint-loading"
             >
-              Loading solution...
+              <div class="loading-spinner"></div>
+              <span>Hilfestellung wird generiert...</span>
             </div>
 
-            <!-- Lösungstext (eigene KaTeX-Logik) -->
+            <!-- Hint Box (Progressive Socratic Hints) -->
             <div
-              v-if="solutions[tIndex]?.[sIndex]"
-              class="solution-box"
-              v-html="formatLatex(solutions[tIndex][sIndex])"
-            ></div>
+              v-if="hints[tIndex]?.[sIndex]"
+              class="hint-box"
+            >
+              <div class="hint-header">
+                <h4 class="hint-title">
+                  💡 Hilfestellung (Stufe {{ hints[tIndex][sIndex].level }}/3)
+                </h4>
+                <span :class="['hint-level-badge', `level-${hints[tIndex][sIndex].level}`]">
+                  {{ hints[tIndex][sIndex].level === 1 ? 'Sokratisch' : hints[tIndex][sIndex].level === 2 ? 'Anleitend' : 'Spezifisch' }}
+                </span>
+              </div>
+              <p class="hint-text" v-html="renderInline(hints[tIndex][sIndex].text)"></p>
+              <div class="hint-encouragement">
+                {{ hints[tIndex][sIndex].encouragement }}
+              </div>
+              <div v-if="hints[tIndex][sIndex].level < 3" class="hint-more">
+                <button 
+                  class="more-hint-btn"
+                  @click="requestHint(tIndex, sIndex, task, sub)"
+                >
+                  Weitere Hilfe benötigt?
+                </button>
+              </div>
+            </div>
           </div>
         </div>
         <div
@@ -344,12 +365,14 @@ const usageStats = ref({
   visualizations: 0,
   animations: 0,
   graphs: 0,
-  solutions: 0
+  hints: 0,           // Replaced solutions
+  hintLevels: []      // Track which levels were used [1,1,2,3,...]
 })
 
-// Lösungen & Ladezustand je Teilaufgabe
-const solutions = ref([])        // [ [string|null, ...], ... ]
-const solutionLoading = ref([])  // [ [bool, ...], ... ]
+// Progressive Hints System (Replaces Solution)
+const hints = ref([])            // [ [{ level, text, encouragement }|null, ...], ... ]
+const hintLoading = ref([])      // [ [bool, ...], ... ]
+const hintsUsed = ref([])        // [ [number, ...], ... ] - tracks hint count per subtask
 
 // Visualizations & Ladezustand je Teilaufgabe
 const visualizations = ref([])        // [ [string|null, ...], ... ]
@@ -676,8 +699,9 @@ function formatLatex(text) {
 function handleAnalysisStarted(fileInfo) {
   loading.value = true
   response.value = null
-  solutions.value = []
-  solutionLoading.value = []
+  hints.value = []
+  hintLoading.value = []
+  hintsUsed.value = []
   visualizations.value = []
   visualizationLoading.value = []
   animations.value = []
@@ -697,7 +721,8 @@ function handleAnalysisStarted(fileInfo) {
     visualizations: 0,
     animations: 0,
     graphs: 0,
-    solutions: 0
+    hints: 0,
+    hintLevels: []
   }
   
   // Reset question loop tracking
@@ -729,11 +754,15 @@ function handleAnalysisResult(data) {
     feedback.value[i] = localStorage.getItem(`feedback_task_${i}`) || null
   })
 
-  solutions.value = response.value.map(task =>
+  // Initialize progressive hints (replaces solutions)
+  hints.value = response.value.map(task =>
     (task.subtasks || []).map(() => null)
   )
-  solutionLoading.value = response.value.map(task =>
+  hintLoading.value = response.value.map(task =>
     (task.subtasks || []).map(() => false)
+  )
+  hintsUsed.value = response.value.map(task =>
+    (task.subtasks || []).map(() => 0)
   )
   visualizations.value = response.value.map(task =>
     (task.subtasks || []).map(() => null)
@@ -810,26 +839,38 @@ function refreshQuestion(taskIndex, subIndex, subtask) {
 }
 
 /* ----------------------------------------------------------------------------
- * Lösung laden / ein- und ausblenden
+ * Progressive Hint System (Socratic → Directive → Specific)
+ * REPLACES the old toggleSolution function
  * --------------------------------------------------------------------------*/
-async function toggleSolution(taskIndex, subIndex, task, subtask) {
-  if (solutions.value[taskIndex]?.[subIndex]) {
-    solutions.value[taskIndex][subIndex] = null
+async function requestHint(taskIndex, subIndex, task, subtask) {
+  // Initialize arrays if needed
+  if (!hints.value[taskIndex]) {
+    hints.value[taskIndex] = []
+  }
+  if (!hintLoading.value[taskIndex]) {
+    hintLoading.value[taskIndex] = []
+  }
+  if (!hintsUsed.value[taskIndex]) {
+    hintsUsed.value[taskIndex] = []
+  }
+  
+  // Get current hint level (1, 2, or 3)
+  const currentHints = hintsUsed.value[taskIndex][subIndex] || 0
+  const nextLevel = Math.min(currentHints + 1, 3)
+  
+  // If already at level 3, just show encouraging message
+  if (currentHints >= 3) {
+    toast.info('Maximale Hilfestellung erreicht', {
+      description: 'Du hast bereits alle 3 Hilfestellungen erhalten. Versuche jetzt, die Aufgabe zu lösen!'
+    })
     return
   }
-
-  if (!solutions.value[taskIndex]) {
-    solutions.value[taskIndex] = []
-  }
-  if (!solutionLoading.value[taskIndex]) {
-    solutionLoading.value[taskIndex] = []
-  }
-
-  solutionLoading.value[taskIndex][subIndex] = true
+  
+  hintLoading.value[taskIndex][subIndex] = true
 
   try {
     const res = await fetch(
-      'http://127.0.0.1:8000/solve',
+      'http://127.0.0.1:8000/hint',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -838,13 +879,15 @@ async function toggleSolution(taskIndex, subIndex, task, subtask) {
           topic: task.topic,
           taskText: task.task,
           subLabel: subtask.label,
-          subtaskText: subtask.task
+          subtaskText: subtask.task,
+          hintLevel: nextLevel,
+          previousHints: hints.value[taskIndex][subIndex]?.text || null
         })
       }
     )
 
     if (!res.ok) {
-      throw new Error('Serverfehler beim Laden der Lösung.')
+      throw new Error('Serverfehler beim Laden der Hilfestellung.')
     }
 
     const data = await res.json()
@@ -853,17 +896,34 @@ async function toggleSolution(taskIndex, subIndex, task, subtask) {
       throw new Error(data.error)
     }
 
-    solutions.value[taskIndex][subIndex] =
-      data.solution || 'No solution was returned.'
+    // Store the hint
+    hints.value[taskIndex][subIndex] = {
+      level: nextLevel,
+      text: data.hint,
+      encouragement: data.encouragement || 'Du schaffst das! 💪'
+    }
     
     // Track usage
-    usageStats.value.solutions++
+    hintsUsed.value[taskIndex][subIndex] = nextLevel
+    usageStats.value.hints++
+    usageStats.value.hintLevels.push(nextLevel)
+    
+    // Show toast based on level
+    const levelNames = {
+      1: 'Sokratische Frage',
+      2: 'Anleitender Hinweis',
+      3: 'Spezifische Hilfe'
+    }
+    toast.success(levelNames[nextLevel], {
+      description: `Hilfestellung ${nextLevel}/3`
+    })
+    
   } catch (err) {
-    toast.error('Error loading solution', {
+    toast.error('Fehler beim Laden der Hilfestellung', {
       description: err.message
     })
   } finally {
-    solutionLoading.value[taskIndex][subIndex] = false
+    hintLoading.value[taskIndex][subIndex] = false
   }
 }
 
@@ -1624,14 +1684,13 @@ body {
   transform: translateY(-1px);
 }
 
-.solution-btn {
-  background: var(--secondary-color);
-  border: 1px solid var(--secondary-color);
+.hint-btn {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
 }
 
-.solution-btn:hover {
-  background-color: var(--primary-color);
-  border-color: var(--primary-color);
+.hint-btn:hover {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
 }
@@ -1641,7 +1700,7 @@ body {
 }
 
 .visualization-loading,
-.solution-loading {
+.hint-loading {
   font-size: 0.875rem;
   color: var(--text-secondary);
   margin-top: 0.75rem;
@@ -1650,6 +1709,15 @@ body {
   background: var(--bg-soft);
   border-radius: 0.25rem;
   text-align: center;
+}
+
+.hint-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 2px solid #f59e0b;
 }
 
 .animation-loading,
@@ -1968,56 +2036,121 @@ body {
   width: 100% !important;
 }
 
-/* Professional Solution Box */
-.solution-box {
+/* Progressive Hint Box (Replaces Solution Box) */
+.hint-box {
   margin-top: 1.25rem;
-  padding: 2rem;
-  background: var(--bg-light);
-  border: 1px solid var(--border-color);
-  border-left: 4px solid var(--secondary-color);
-  border-radius: 0.375rem;
-  font-size: 1rem;
-  line-height: 1.8;
-  font-family: 'Georgia', 'Cambria', 'Times New Roman', serif;
-  color: var(--text-primary);
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border: 2px solid #fbbf24;
+  border-left: 5px solid #f59e0b;
+  border-radius: 0.5rem;
   box-shadow: var(--shadow-md);
   position: relative;
 }
 
-.solution-box::before {
+.hint-box::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(to right, var(--secondary-color), transparent);
+  background: linear-gradient(to right, #f59e0b 0%, transparent 50%);
 }
 
-/* Solution box content spacing */
-.solution-box :deep(div) {
-  margin-bottom: 0.75rem;
+.hint-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #fde68a;
 }
 
-/* Math equations in solution */
-.solution-box :deep(.katex-display) {
-  margin: 1.5rem 0;
-  padding: 1.25rem;
-  background-color: var(--bg-soft);
-  border-radius: 0.25rem;
-  border: 1px solid var(--border-color);
+.hint-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #92400e;
+  margin: 0;
 }
 
-/* Inline math styling */
-.solution-box :deep(.katex) {
-  font-size: 1.05em;
+.hint-level-badge {
+  font-size: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.hint-level-badge.level-1 {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.hint-level-badge.level-2 {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.hint-level-badge.level-3 {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.hint-text {
+  font-size: 1rem;
   color: var(--text-primary);
+  line-height: 1.8;
+  margin: 0 0 1rem 0;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 0.375rem;
+  border-left: 3px solid #f59e0b;
 }
 
-/* Solution box text alignment */
-.solution-box > div {
-  text-align: left;
+.hint-encouragement {
+  font-size: 0.95rem;
+  color: #059669;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border-radius: 0.375rem;
+  text-align: center;
+  margin-top: 1rem;
 }
+
+.hint-more {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.more-hint-btn {
+  background: transparent;
+  border: 2px dashed #f59e0b;
+  color: #92400e;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.more-hint-btn:hover {
+  background: #fef3c7;
+  border-style: solid;
+}
+
+/* ============================================================
+   REMOVED: Solution Box - Violates Socratic Method
+   Date: 2026-01-12
+   Reason: Showing full solutions directly contradicts the 
+   Socratic questioning philosophy of Clarity Coach.
+   
+   REPLACED BY: Progressive Hint System (.hint-box)
+   See Phase 1 of UI/UX Optimization
+   ============================================================ */
 
 /* Professional Section Headers */
 .latex-section-header {
@@ -2027,9 +2160,10 @@ body {
   position: relative;
 }
 
-.latex-section-header.solution-header {
+/* Legacy hint header - kept for hint formatting */
+.latex-section-header.hint-header {
   margin-top: 0 !important;
-  border-bottom: 2px solid var(--secondary-color);
+  border-bottom: 2px solid #f59e0b;
 }
 
 .latex-section-header.proof-header {
@@ -2045,8 +2179,8 @@ body {
   letter-spacing: 0.01em;
 }
 
-.solution-header .latex-label {
-  color: var(--secondary-color);
+.hint-header .latex-label {
+  color: #92400e;
 }
 
 .proof-header .latex-label::after {
@@ -2140,8 +2274,8 @@ body {
   margin-top: 1.5rem;
 }
 
-/* Smooth fade-in animation */
-.solution-box > * {
+/* Smooth fade-in animation for hint box */
+.hint-box > * {
   animation: fadeIn 0.25s ease-out;
 }
 
@@ -2154,17 +2288,6 @@ body {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-/* QED symbol */
-.solution-box::after {
-  content: '∎';
-  display: block;
-  text-align: right;
-  font-size: 1.125rem;
-  color: var(--text-secondary);
-  margin-top: 2rem;
-  font-weight: 600;
 }
 
 /* Professional Feedback Buttons */

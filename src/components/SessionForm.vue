@@ -129,7 +129,7 @@
         <input type="hidden" v-model="formData.visualisierungen_genutzt" />
         <input type="hidden" v-model="formData.animationen_genutzt" />
         <input type="hidden" v-model="formData.grafiken_genutzt" />
-        <input type="hidden" v-model="formData.loesungen_angezeigt" />
+        <input type="hidden" v-model="formData.hints_genutzt" />
         <input type="hidden" v-model="formData.sitzungsdauer_minuten" />
 
         <!-- Form Actions -->
@@ -177,7 +177,7 @@ const formData = ref({
   visualisierungen_genutzt: 0,
   animationen_genutzt: 0,
   grafiken_genutzt: 0,
-  loesungen_angezeigt: 0,
+  hints_genutzt: 0,  // Replaced loesungen_angezeigt
   feedback: '',
   sitzungsdauer_minuten: 0,
   notizen: ''
@@ -208,7 +208,7 @@ const updateUsageStats = (stats) => {
   formData.value.visualisierungen_genutzt = stats.visualizations || 0;
   formData.value.animationen_genutzt = stats.animations || 0;
   formData.value.grafiken_genutzt = stats.graphs || 0;
-  formData.value.loesungen_angezeigt = stats.solutions || 0;
+  formData.value.hints_genutzt = stats.hints || 0;  // Tracks progressive hints used
 };
 
 // Calculate session duration
@@ -282,7 +282,7 @@ const resetForm = () => {
     visualisierungen_genutzt: 0,
     animationen_genutzt: 0,
     grafiken_genutzt: 0,
-    loesungen_angezeigt: 0,
+    hints_genutzt: 0,
     feedback: '',
     sitzungsdauer_minuten: 0,
     notizen: ''
