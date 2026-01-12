@@ -17,6 +17,22 @@
       @analysis-started="handleAnalysisStarted"
       @analysis-result="handleAnalysisResult"
     />
+    
+    <!-- DEBUG: Manual Trigger Buttons -->
+    <div v-if="response && Array.isArray(response)" style="margin: 1rem 0; padding: 1rem; background: #fef3c7; border: 2px solid #fbbf24; border-radius: 0.5rem;">
+      <p style="margin: 0 0 0.5rem 0; font-weight: 600; color: #92400e;">🔧 Debug Controls:</p>
+      <div style="display: flex; gap: 0.5rem;">
+        <button @click="showSessionForm = true" style="padding: 0.5rem 1rem; background: #3b82f6; color: white; border: none; border-radius: 0.25rem; cursor: pointer; font-weight: 600;">
+          📝 Open Session Form
+        </button>
+        <button @click="showAssessmentModal = true; currentSessionId = 'TEST-001'" style="padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 0.25rem; cursor: pointer; font-weight: 600;">
+          📊 Open Assessment Modal
+        </button>
+        <button @click="showSessionForm = false; showAssessmentModal = false" style="padding: 0.5rem 1rem; background: #ef4444; color: white; border: none; border-radius: 0.25rem; cursor: pointer; font-weight: 600;">
+          ✕ Close All
+        </button>
+      </div>
+    </div>
 
     <!-- Hinweisbereich -->
     <div
