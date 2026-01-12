@@ -361,6 +361,135 @@
                 </button>
               </div>
             </div>
+
+            <!-- PHASE 3.2: Smart Approach Checker -->
+            <template v-if="FEATURE_FLAGS.smartApproachChecker">
+              <!-- Toggle Button to Show/Hide Approach Checker Input -->
+              <button
+                class="action-btn approach-checker-toggle-btn"
+                @click="toggleApproachInput(tIndex, sIndex)"
+                :disabled="approachCheckLoading[tIndex]?.[sIndex]"
+              >
+                <span v-if="showApproachInput[tIndex]?.[sIndex]">
+                  ✗ Eingabe schließen
+                </span>
+                <span v-else>
+                  ✓ Meinen Ansatz prüfen
+                </span>
+              </button>
+
+              <!-- Approach Input Area -->
+              <div
+                v-if="showApproachInput[tIndex]?.[sIndex]"
+                class="approach-input-area"
+              >
+                <label class="approach-input-label">
+                  Beschreibe deinen Lösungsansatz oder gib deine bisherige Rechnung ein:
+                </label>
+                <textarea
+                  v-model="studentWork[tIndex][sIndex]"
+                  class="approach-textarea"
+                  placeholder="z.B.: Ich berechne zuerst die Ableitung f'(x) = 3x² - 6x + 2, dann setze ich sie gleich null..."
+                  rows="4"
+                ></textarea>
+                <div class="approach-input-actions">
+                  <button
+                    class="check-approach-btn"
+                    @click="checkApproach(tIndex, sIndex, task, sub)"
+                    :disabled="!studentWork[tIndex]?.[sIndex]?.trim() || approachCheckLoading[tIndex]?.[sIndex]"
+                  >
+                    <span v-if="approachCheckLoading[tIndex]?.[sIndex]">
+                      <span class="loading-dots">Wird geprüft</span>
+                    </span>
+                    <span v-else>
+                      ✓ Ansatz überprüfen
+                    </span>
+                  </button>
+                  <span class="approach-hint-text">
+                    Tipp: Je detaillierter deine Beschreibung, desto besser das Feedback!
+                  </span>
+                </div>
+              </div>
+
+              <!-- Approach Check Loading -->
+              <div
+                v-if="approachCheckLoading[tIndex]?.[sIndex]"
+                class="approach-check-loading"
+              >
+                <div class="loading-spinner"></div>
+                <span>Dein Ansatz wird analysiert...</span>
+              </div>
+
+              <!-- Approach Check Result -->
+              <div
+                v-if="approachResults[tIndex]?.[sIndex] && !approachCheckLoading[tIndex]?.[sIndex]"
+                class="approach-result-box"
+                :class="getApproachResultClass(approachResults[tIndex][sIndex])"
+              >
+                <div class="approach-result-header">
+                  <div class="approach-track-indicator">
+                    <span v-if="approachResults[tIndex][sIndex].isOnRightTrack" class="track-icon track-correct">✓</span>
+                    <span v-else class="track-icon track-needs-work">○</span>
+                    <span class="track-text">
+                      {{ approachResults[tIndex][sIndex].isOnRightTrack ? 'Auf dem richtigen Weg!' : 'Noch nicht ganz...' }}
+                    </span>
+                  </div>
+                  <div class="confidence-score">
+                    <span class="confidence-label">Bewertung:</span>
+                    <div class="confidence-stars">
+                      <span 
+                        v-for="star in 5" 
+                        :key="star" 
+                        :class="['star', star <= approachResults[tIndex][sIndex].confidenceScore ? 'filled' : 'empty']"
+                      >★</span>
+                    </div>
+                  </div>
+                </div>
+
+                <p class="approach-assessment">
+                  {{ approachResults[tIndex][sIndex].overallAssessment }}
+                </p>
+
+                <div v-if="approachResults[tIndex][sIndex].strengths?.length" class="approach-strengths">
+                  <h5>✓ Was gut war:</h5>
+                  <ul>
+                    <li v-for="(strength, idx) in approachResults[tIndex][sIndex].strengths" :key="idx">
+                      {{ strength }}
+                    </li>
+                  </ul>
+                </div>
+
+                <div v-if="approachResults[tIndex][sIndex].improvements?.length" class="approach-improvements">
+                  <h5>→ Verbesserungsvorschläge:</h5>
+                  <ul>
+                    <li v-for="(improvement, idx) in approachResults[tIndex][sIndex].improvements" :key="idx">
+                      {{ improvement }}
+                    </li>
+                  </ul>
+                </div>
+
+                <div v-if="approachResults[tIndex][sIndex].specificIssue" class="approach-specific-issue">
+                  <h5>⚠ Spezifisches Problem:</h5>
+                  <p>{{ approachResults[tIndex][sIndex].specificIssue }}</p>
+                </div>
+
+                <div class="approach-next-step">
+                  <h5>📍 Nächster Schritt:</h5>
+                  <p>{{ approachResults[tIndex][sIndex].nextStep }}</p>
+                </div>
+
+                <div class="approach-encouragement">
+                  {{ approachResults[tIndex][sIndex].encouragement }}
+                </div>
+
+                <button
+                  class="retry-approach-btn"
+                  @click="clearApproachResult(tIndex, sIndex)"
+                >
+                  🔄 Neuen Ansatz eingeben
+                </button>
+              </div>
+            </template>
           </div>
         </div>
         <div
@@ -456,6 +585,12 @@ const usageStats = ref({
 const hints = ref([])            // [ [{ level, text, encouragement }|null, ...], ... ]
 const hintLoading = ref([])      // [ [bool, ...], ... ]
 const hintsUsed = ref([])        // [ [number, ...], ... ] - tracks hint count per subtask
+
+// Smart Approach Checker System (Phase 3.2)
+const showApproachInput = ref([])     // [ [bool, ...], ... ] - toggle input visibility
+const studentWork = ref([])           // [ [string, ...], ... ] - student's work/approach input
+const approachCheckLoading = ref([])  // [ [bool, ...], ... ] - loading state
+const approachResults = ref([])       // [ [{ isOnRightTrack, overallAssessment, ... }|null, ...], ... ]
 
 // Visualizations & Ladezustand je Teilaufgabe
 const visualizations = ref([])        // [ [string|null, ...], ... ]
@@ -806,6 +941,11 @@ function handleAnalysisStarted(fileInfo) {
   previousVisuals.value = []
   subtaskStartTime.value = []
   currentQuestionIndex.value = []
+  // Phase 3.2: Smart Approach Checker
+  showApproachInput.value = []
+  studentWork.value = []
+  approachCheckLoading.value = []
+  approachResults.value = []
   
   // Store file info for session logging
   if (fileInfo) {
@@ -899,6 +1039,19 @@ function handleAnalysisResult(data) {
   )
   currentQuestionIndex.value = response.value.map(task =>
     (task.subtasks || []).map(() => 0)  // Start with first question
+  )
+  // Phase 3.2: Initialize approach checker arrays
+  showApproachInput.value = response.value.map(task =>
+    (task.subtasks || []).map(() => false)
+  )
+  studentWork.value = response.value.map(task =>
+    (task.subtasks || []).map(() => '')
+  )
+  approachCheckLoading.value = response.value.map(task =>
+    (task.subtasks || []).map(() => false)
+  )
+  approachResults.value = response.value.map(task =>
+    (task.subtasks || []).map(() => null)
   )
 
   toast.success('Analysis complete', {
@@ -1039,6 +1192,144 @@ async function requestHint(taskIndex, subIndex, task, subtask) {
     })
   } finally {
     hintLoading.value[taskIndex][subIndex] = false
+  }
+}
+
+/* ----------------------------------------------------------------------------
+ * PHASE 3.2: Smart Approach Checker Functions
+ * --------------------------------------------------------------------------*/
+
+/**
+ * Toggle the approach input visibility
+ */
+function toggleApproachInput(taskIndex, subIndex) {
+  // Initialize arrays if needed
+  if (!showApproachInput.value[taskIndex]) {
+    showApproachInput.value[taskIndex] = []
+  }
+  if (!studentWork.value[taskIndex]) {
+    studentWork.value[taskIndex] = []
+  }
+  
+  // Toggle visibility
+  showApproachInput.value[taskIndex][subIndex] = !showApproachInput.value[taskIndex][subIndex]
+}
+
+/**
+ * Check the student's approach without revealing the solution
+ */
+async function checkApproach(taskIndex, subIndex, task, subtask) {
+  // Initialize arrays if needed
+  if (!approachCheckLoading.value[taskIndex]) {
+    approachCheckLoading.value[taskIndex] = []
+  }
+  if (!approachResults.value[taskIndex]) {
+    approachResults.value[taskIndex] = []
+  }
+  
+  const work = studentWork.value[taskIndex]?.[subIndex]?.trim()
+  
+  if (!work) {
+    toast.warning('Bitte gib deinen Lösungsansatz ein', {
+      description: 'Beschreibe, wie du die Aufgabe lösen würdest.'
+    })
+    return
+  }
+  
+  approachCheckLoading.value[taskIndex][subIndex] = true
+  
+  try {
+    const res = await fetch('http://127.0.0.1:8000/check-approach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        taskNumber: task.number,
+        topic: task.topic,
+        taskText: task.task,
+        subLabel: subtask.label,
+        subtaskText: subtask.task,
+        studentWork: work
+      })
+    })
+
+    if (!res.ok) {
+      throw new Error('Serverfehler beim Prüfen des Ansatzes.')
+    }
+
+    const data = await res.json()
+
+    if (data.error) {
+      throw new Error(data.error)
+    }
+
+    // Store the result
+    approachResults.value[taskIndex][subIndex] = {
+      isOnRightTrack: data.isOnRightTrack,
+      overallAssessment: data.overallAssessment,
+      strengths: data.strengths || [],
+      improvements: data.improvements || [],
+      specificIssue: data.specificIssue,
+      nextStep: data.nextStep,
+      encouragement: data.encouragement || 'Weiter so!',
+      confidenceScore: data.confidenceScore || 3
+    }
+    
+    // Track usage
+    usageStats.value.approachChecks = (usageStats.value.approachChecks || 0) + 1
+    
+    // Show toast based on result
+    if (data.isOnRightTrack) {
+      toast.success('Guter Ansatz!', {
+        description: 'Du bist auf dem richtigen Weg.'
+      })
+    } else {
+      toast.info('Feedback erhalten', {
+        description: 'Schau dir die Verbesserungsvorschläge an.'
+      })
+    }
+    
+    // Hide the input area after checking
+    showApproachInput.value[taskIndex][subIndex] = false
+
+  } catch (err) {
+    toast.error('Fehler beim Prüfen des Ansatzes', {
+      description: err.message
+    })
+  } finally {
+    approachCheckLoading.value[taskIndex][subIndex] = false
+  }
+}
+
+/**
+ * Clear the approach result to enter a new one
+ */
+function clearApproachResult(taskIndex, subIndex) {
+  if (approachResults.value[taskIndex]) {
+    approachResults.value[taskIndex][subIndex] = null
+  }
+  // Clear the student work
+  if (studentWork.value[taskIndex]) {
+    studentWork.value[taskIndex][subIndex] = ''
+  }
+  // Show the input area again
+  if (showApproachInput.value[taskIndex]) {
+    showApproachInput.value[taskIndex][subIndex] = true
+  }
+}
+
+/**
+ * Get the CSS class for approach result based on confidence score
+ */
+function getApproachResultClass(result) {
+  if (!result) return ''
+  if (result.isOnRightTrack && result.confidenceScore >= 4) {
+    return 'result-excellent'
+  } else if (result.isOnRightTrack) {
+    return 'result-good'
+  } else if (result.confidenceScore >= 2) {
+    return 'result-needs-work'
+  } else {
+    return 'result-off-track'
   }
 }
 
@@ -2784,6 +3075,319 @@ body {
 
 .more-hint-btn:hover {
   background: #fef3c7;
+  border-style: solid;
+}
+
+/* ============================================================
+   PHASE 3.2: Smart Approach Checker Styles
+   Date: 2026-01-12
+   Purpose: Validate student's work without revealing solution
+   ============================================================ */
+
+/* Approach Checker Toggle Button */
+.approach-checker-toggle-btn {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  margin-top: 0.75rem;
+  width: 100%;
+  box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3);
+}
+
+.approach-checker-toggle-btn:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* Approach Input Area */
+.approach-input-area {
+  margin-top: 1rem;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  border: 2px solid #c4b5fd;
+  border-radius: 0.5rem;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.approach-input-label {
+  display: block;
+  font-weight: 600;
+  color: #5b21b6;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.approach-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 0.875rem;
+  border: 2px solid #c4b5fd;
+  border-radius: 0.375rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  resize: vertical;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background: white;
+}
+
+.approach-textarea:focus {
+  outline: none;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+}
+
+.approach-textarea::placeholder {
+  color: #a78bfa;
+  font-style: italic;
+}
+
+.approach-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.check-approach-btn {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.375rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3);
+  white-space: nowrap;
+}
+
+.check-approach-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.check-approach-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.approach-hint-text {
+  font-size: 0.8125rem;
+  color: #7c3aed;
+  font-style: italic;
+}
+
+/* Approach Check Loading */
+.approach-check-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: #6d28d9;
+  margin-top: 1rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  border: 2px solid #c4b5fd;
+  border-radius: 0.5rem;
+  font-weight: 500;
+}
+
+/* Approach Result Box */
+.approach-result-box {
+  margin-top: 1.25rem;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  border-left: 5px solid;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.approach-result-box.result-excellent {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-color: #10b981;
+}
+
+.approach-result-box.result-good {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border-color: #22c55e;
+}
+
+.approach-result-box.result-needs-work {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-color: #f59e0b;
+}
+
+.approach-result-box.result-off-track {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-color: #ef4444;
+}
+
+.approach-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+.approach-track-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.track-icon {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.track-icon.track-correct {
+  color: #10b981;
+}
+
+.track-icon.track-needs-work {
+  color: #f59e0b;
+}
+
+.track-text {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.confidence-score {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.confidence-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.confidence-stars {
+  display: flex;
+  gap: 2px;
+}
+
+.star {
+  font-size: 1.125rem;
+}
+
+.star.filled {
+  color: #f59e0b;
+}
+
+.star.empty {
+  color: #d1d5db;
+}
+
+.approach-assessment {
+  font-size: 1rem;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.approach-strengths,
+.approach-improvements,
+.approach-specific-issue,
+.approach-next-step {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 0.375rem;
+}
+
+.approach-strengths h5,
+.approach-improvements h5,
+.approach-specific-issue h5,
+.approach-next-step h5 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.approach-strengths { background: rgba(16, 185, 129, 0.1); }
+.approach-strengths h5 { color: #065f46; }
+
+.approach-improvements { background: rgba(245, 158, 11, 0.1); }
+.approach-improvements h5 { color: #92400e; }
+
+.approach-specific-issue { background: rgba(239, 68, 68, 0.1); }
+.approach-specific-issue h5 { color: #991b1b; }
+
+.approach-next-step { background: rgba(59, 130, 246, 0.1); }
+.approach-next-step h5 { color: #1e40af; }
+
+.approach-strengths ul,
+.approach-improvements ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.approach-strengths li,
+.approach-improvements li {
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.approach-specific-issue p,
+.approach-next-step p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.approach-encouragement {
+  color: #059669;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border-radius: 0.375rem;
+  text-align: center;
+  margin-top: 1rem;
+  font-size: 0.9375rem;
+}
+
+.retry-approach-btn {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+  background: transparent;
+  border: 2px dashed #8b5cf6;
+  color: #6d28d9;
+  padding: 0.625rem 1rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.retry-approach-btn:hover {
+  background: #f5f3ff;
   border-style: solid;
 }
 

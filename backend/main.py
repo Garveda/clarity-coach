@@ -389,6 +389,128 @@ REGELN:
 
 
 # ------------------------------
+# Smart Approach Checker (Phase 3.2)
+# Validates student work WITHOUT revealing solution
+# ------------------------------
+@app.post("/check-approach")
+async def check_approach(payload: dict = Body(...)):
+    """
+    Smart Approach Checker - Analyzes student's work and provides feedback
+    WITHOUT revealing the solution.
+    
+    This helps students understand if they're on the right track while
+    maintaining the Socratic teaching methodology.
+    """
+    task_number = payload.get("taskNumber")
+    task_text = payload.get("taskText", "")
+    topic = payload.get("topic", "")
+    sub_label = payload.get("subLabel")
+    subtask_text = payload.get("subtaskText", "")
+    student_work = payload.get("studentWork", "")
+    
+    if not subtask_text or not str(subtask_text).strip():
+        raise HTTPException(status_code=400, detail="Keine Teilaufgabe übergeben.")
+    
+    if not student_work or not str(student_work).strip():
+        raise HTTPException(status_code=400, detail="Keine Schülerarbeit übergeben.")
+    
+    check_prompt = f"""
+Du bist ein erfahrener Mathematiklehrer, der die Arbeit eines Schülers überprüft.
+
+WICHTIG: Du darfst NIEMALS die vollständige Lösung verraten!
+
+**Aufgabe {task_number}: {topic}**
+Hauptaufgabe: {task_text}
+
+**Teilaufgabe {sub_label}:**
+{subtask_text}
+
+**Arbeit des Schülers:**
+{student_work}
+
+Analysiere die Arbeit des Schülers und gib konstruktives Feedback. Beachte:
+
+1. VERRATE NICHT DIE LÖSUNG
+2. Identifiziere, ob der Ansatz richtig ist
+3. Weise auf spezifische Probleme hin (falls vorhanden)
+4. Ermutige den Schüler
+
+Prüfe folgende Aspekte:
+- Hat der Schüler das Problem richtig verstanden?
+- Ist der gewählte Lösungsansatz geeignet?
+- Sind die mathematischen Schritte korrekt?
+- Gibt es Rechenfehler oder logische Fehler?
+- Ist die Notation korrekt?
+
+Gib deine Antwort im folgenden JSON-Format:
+{{
+  "isOnRightTrack": true/false,
+  "overallAssessment": "Kurze Einschätzung (1-2 Sätze)",
+  "strengths": ["Was gut gemacht wurde"],
+  "improvements": ["Was verbessert werden könnte (ohne Lösung zu verraten)"],
+  "specificIssue": "Spezifisches Problem falls vorhanden (optional)",
+  "nextStep": "Hinweis zum nächsten Schritt (ohne Lösung)",
+  "encouragement": "Aufmunternder Satz",
+  "confidenceScore": 1-5
+}}
+
+REGELN:
+- "confidenceScore": 1 = völlig falsch, 2 = auf falschem Weg, 3 = teilweise richtig, 4 = fast richtig, 5 = perfekt
+- Sei konstruktiv und ermutigend
+- Gib KEINE direkten Lösungen
+- Fokussiere auf den PROZESS, nicht das Ergebnis
+"""
+
+    try:
+        print(f"[CHECK] Checking approach for task {task_number}{sub_label}...")
+        
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Du bist ein geduldiger Mathematiklehrer, der Schülerarbeit konstruktiv bewertet. "
+                        "Du gibst hilfreiche Rückmeldung, ohne die Lösung zu verraten."
+                    ),
+                },
+                {"role": "user", "content": check_prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.7
+        )
+
+        check_json_str = response.choices[0].message.content
+        
+        # Safe printing
+        try:
+            print(f"\n--- Approach Check Result ---\n{check_json_str[:300]}...\n")
+        except UnicodeEncodeError:
+            print(f"\n--- Approach Check Result ---\n[Contains Unicode characters]\n")
+
+        check_data = json.loads(check_json_str)
+        
+        return {
+            "isOnRightTrack": check_data.get("isOnRightTrack", False),
+            "overallAssessment": check_data.get("overallAssessment", "Überprüfung abgeschlossen."),
+            "strengths": check_data.get("strengths", []),
+            "improvements": check_data.get("improvements", []),
+            "specificIssue": check_data.get("specificIssue"),
+            "nextStep": check_data.get("nextStep", "Arbeite weiter an deinem Ansatz."),
+            "encouragement": check_data.get("encouragement", "Du schaffst das!"),
+            "confidenceScore": check_data.get("confidenceScore", 3),
+            "success": True
+        }
+
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] Check JSON Parse Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Approach check failed: {str(e)}")
+    except Exception as e:
+        print(f"[ERROR] Error checking approach: {e}")
+        raise HTTPException(status_code=500, detail=f"Approach check failed: {str(e)}")
+
+
+# ------------------------------
 # Datei-Upload (Bild oder PDF)
 # ------------------------------
 @app.post("/upload")
