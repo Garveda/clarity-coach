@@ -1,0 +1,27 @@
+{
+  "user_id": "demo_user",
+  "domain": "self_clarity",
+  "session_count": 1,
+  "created_at": "2026-02-11T14:53:10.111563",
+  "last_session": "2026-02-11T14:53:18.063530",
+  "key_insights": [],
+  "recurring_themes": [],
+  "contradictions": [],
+  "next_session_focus": "Start with flow moments and energy sources",
+  "current_conversation": [
+    {
+      "role": "user",
+      "content": "Was soll ich arbeiten?",
+      "timestamp": "2026-02-11T14:53:10.111589"
+    },
+    {
+      "role": "assistant",
+      "content": {
+        "reflection": "Was hat dich in der Vergangenheit bei der Arbeit wirklich erfüllt? Kannst du einen Moment beschreiben, in dem du das Gefühl hattest, dass du genau das tust, was du tun möchtest?",
+        "encouragement": "Es ist großartig, dass du dir Gedanken über deine berufliche Richtung machst. Lass uns gemeinsam erkunden, was dich wirklich antreibt und begeistert.",
+        "session_progress": "Wir haben gerade erst mit unserer ersten Reflexions-Session begonnen. Lass uns schauen, welche Muster und Erlebnisse dich im Flow und bei der Arbeit erfüllt haben. Deine Erfahrungen sind der Schlüssel zu deinem Verständnis."
+      },
+      "timestamp": "2026-02-11T14:53:18.063461"
+    }
+  ]
+}
