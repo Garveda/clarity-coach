@@ -110,7 +110,7 @@ async function loadSessionInfo() {
 }
 
 async function sendMessage() {
-  if (!userInput.trim() || isLoading.value) return
+  if (!userInput.value.trim() || isLoading.value) return
 
   const messageText = userInput.value.trim()
   const topic = currentTopic.value

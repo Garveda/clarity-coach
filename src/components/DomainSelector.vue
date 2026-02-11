@@ -22,7 +22,7 @@
 </template>
 
 <script setup>
-import { ref, defineEmits } from 'vue'
+import { ref } from 'vue'
 
 const emit = defineEmits(['domain-selected'])
 
@@ -53,8 +53,10 @@ const domains = [
 ]
 
 function selectDomain(domainId) {
+  console.log('Domain selected:', domainId)
   currentDomain.value = domainId
   emit('domain-selected', domainId)
+  console.log('Event emitted')
 }
 </script>
 

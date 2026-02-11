@@ -15,6 +15,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import { Toaster } from 'vue-sonner'
 import DomainSelector from './components/DomainSelector.vue'
 import ClarityCoach from './components/ClarityCoach.vue'
 import SelfClarityChat from './components/SelfClarityChat.vue'
@@ -23,7 +24,9 @@ import BusinessClarityChat from './components/BusinessClarityChat.vue'
 const selectedDomain = ref(null)
 
 function selectDomain(domainId) {
+  console.log('App received domain:', domainId)
   selectedDomain.value = domainId
+  console.log('selectedDomain is now:', selectedDomain.value)
 }
 
 function goBack() {
