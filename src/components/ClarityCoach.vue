@@ -4,11 +4,12 @@
   >
     <!-- Professional Header -->
     <div class="header-section">
+      <button @click="$emit('back')" class="back-button">← Back to Domains</button>
       <h1 class="app-title">
-        Clarity Coach
+        📐 Math Clarity Coach
       </h1>
       <p class="app-subtitle">
-        Professional Mathematics Analysis System
+        Socratic Mathematics Tutoring System (Grades 7-13)
       </p>
     </div>
 
@@ -2221,6 +2222,25 @@ body {
   margin-bottom: 3rem;
   padding-bottom: 2rem;
   border-bottom: 2px solid var(--border-color);
+  position: relative;
+}
+
+.back-button {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: #f7fafc;
+  border: 1px solid #cbd5e0;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+}
+
+.back-button:hover {
+  background: #e2e8f0;
+  transform: translateX(-2px);
 }
 
 .app-title {

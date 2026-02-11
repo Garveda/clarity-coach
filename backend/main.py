@@ -17,11 +17,17 @@ from datetime import datetime
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Border, Side, Alignment
 from pydantic import BaseModel
+import prompts  # Import comprehensive Socratic prompts
+import session_manager  # Session management for Self/Business Clarity
+import clarity_endpoints  # Self Clarity and Business Clarity endpoints
 
 # 🔹 Umgebung laden (.env mit OPENAI_API_KEY)
 load_dotenv()
 
 app = FastAPI()
+
+# Setup Self Clarity and Business Clarity routes
+clarity_endpoints.setup_clarity_routes(app)
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
     timeout=60.0,  # 60 second timeout to prevent hanging forever
@@ -280,51 +286,12 @@ async def get_hint(payload: dict = Body(...)):
     if not subtask_text or not str(subtask_text).strip():
         raise HTTPException(status_code=400, detail="Keine Teilaufgabe übergeben.")
 
-    # Define hint strategies based on level
-    hint_strategies = {
-        1: """
-STUFE 1 - SOKRATISCHE FRAGE:
-Du stellst eine nachdenkliche Frage, die den Schüler zum Kern des Problems führt.
-Die Frage sollte:
-- NICHT die Lösung verraten
-- Den Schüler zum Nachdenken anregen
-- Sich auf ein konkretes Element der Aufgabe beziehen
-- Eine klare Richtung vorgeben, ohne zu direktiv zu sein
+    # Get comprehensive system prompt based on hint level
+    # This uses the Math Clarity prompt optimization with question patterns
+    system_prompt = prompts.get_hint_prompt(hint_level, question_pattern_type="all")
 
-Beispiel: "Was passiert mit der Gleichung, wenn du beide Seiten durch 3 teilst?"
-Beispiel: "Welche Eigenschaft hat f'(x) für alle x?"
-""",
-        2: """
-STUFE 2 - ANLEITENDER HINWEIS:
-Du gibst einen konkreten nächsten Schritt vor, ohne die Lösung zu verraten.
-Der Hinweis sollte:
-- Eine klare Handlungsanweisung geben
-- Den nächsten logischen Schritt beschreiben
-- NICHT das Ergebnis vorwegnehmen
-
-Beispiel: "Berechne zuerst die Ableitung f'(x) und setze sie gleich null."
-Beispiel: "Forme die Gleichung so um, dass x³ allein steht."
-""",
-        3: """
-STUFE 3 - SPEZIFISCHE HILFE:
-Du gibst einen sehr konkreten Hinweis für den kritischen Schritt.
-Der Hinweis sollte:
-- Auf den schwierigsten Teil der Aufgabe eingehen
-- Eine Formel oder Methode nennen
-- IMMER NOCH NICHT die vollständige Lösung verraten
-
-Beispiel: "Wende die dritte Wurzel an: x = ∛27"
-Beispiel: "Bei f''(x) = 6x ist f''(x₁) = 0 für x₁ = 0 (Wendepunkt)"
-"""
-    }
-
+    # Build the task-specific user prompt
     hint_prompt = f"""
-Du bist ein sokratischer Mathematiklehrer, der Schülern hilft, SELBST zu verstehen.
-
-WICHTIG: Du darfst NIEMALS die vollständige Lösung verraten!
-
-{hint_strategies.get(hint_level, hint_strategies[1])}
-
 **Aufgabe {task_number}: {topic}**
 Hauptaufgabe: {task_text}
 
@@ -344,6 +311,7 @@ REGELN:
 - Verwende $...$ für inline LaTeX wenn nötig
 - VERRATE NICHT DIE LÖSUNG
 - Gib Mut und Motivation
+- Nutze die Frage-Patterns aus dem System-Prompt
 """
 
     try:
@@ -352,10 +320,7 @@ REGELN:
             messages=[
                 {
                     "role": "system",
-                    "content": (
-                        "Du bist ein geduldiger, sokratischer Mathematiklehrer. "
-                        "Du hilfst Schülern, selbst zu verstehen, ohne die Lösung zu verraten."
-                    ),
+                    "content": system_prompt
                 },
                 {"role": "user", "content": hint_prompt},
             ],
@@ -413,68 +378,32 @@ async def check_approach(payload: dict = Body(...)):
     
     if not student_work or not str(student_work).strip():
         raise HTTPException(status_code=400, detail="Keine Schülerarbeit übergeben.")
-    
-    check_prompt = f"""
-Du bist ein erfahrener Mathematiklehrer, der die Arbeit eines Schülers überprüft.
 
-WICHTIG: Du darfst NIEMALS die vollständige Lösung verraten!
+    # Get comprehensive approach checker prompt with self-correction strategies
+    system_prompt = prompts.APPROACH_CHECKER.format(
+        task_number=task_number,
+        topic=topic,
+        task_text=task_text,
+        sub_label=sub_label,
+        subtask_text=subtask_text,
+        student_work=student_work,
+        self_correction_pattern=prompts.QUESTION_PATTERNS["self_correction"]
+    )
 
-**Aufgabe {task_number}: {topic}**
-Hauptaufgabe: {task_text}
-
-**Teilaufgabe {sub_label}:**
-{subtask_text}
-
-**Arbeit des Schülers:**
-{student_work}
-
-Analysiere die Arbeit des Schülers und gib konstruktives Feedback. Beachte:
-
-1. VERRATE NICHT DIE LÖSUNG
-2. Identifiziere, ob der Ansatz richtig ist
-3. Weise auf spezifische Probleme hin (falls vorhanden)
-4. Ermutige den Schüler
-
-Prüfe folgende Aspekte:
-- Hat der Schüler das Problem richtig verstanden?
-- Ist der gewählte Lösungsansatz geeignet?
-- Sind die mathematischen Schritte korrekt?
-- Gibt es Rechenfehler oder logische Fehler?
-- Ist die Notation korrekt?
-
-Gib deine Antwort im folgenden JSON-Format:
-{{
-  "isOnRightTrack": true/false,
-  "overallAssessment": "Kurze Einschätzung (1-2 Sätze)",
-  "strengths": ["Was gut gemacht wurde"],
-  "improvements": ["Was verbessert werden könnte (ohne Lösung zu verraten)"],
-  "specificIssue": "Spezifisches Problem falls vorhanden (optional)",
-  "nextStep": "Hinweis zum nächsten Schritt (ohne Lösung)",
-  "encouragement": "Aufmunternder Satz",
-  "confidenceScore": 1-5
-}}
-
-REGELN:
-- "confidenceScore": 1 = völlig falsch, 2 = auf falschem Weg, 3 = teilweise richtig, 4 = fast richtig, 5 = perfekt
-- Sei konstruktiv und ermutigend
-- Gib KEINE direkten Lösungen
-- Fokussiere auf den PROZESS, nicht das Ergebnis
-"""
+    # Add the Math Clarity core principles
+    full_system_prompt = prompts.MATH_CLARITY_CORE + "\n\n" + system_prompt
 
     try:
         print(f"[CHECK] Checking approach for task {task_number}{sub_label}...")
-        
+
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": (
-                        "Du bist ein geduldiger Mathematiklehrer, der Schülerarbeit konstruktiv bewertet. "
-                        "Du gibst hilfreiche Rückmeldung, ohne die Lösung zu verraten."
-                    ),
+                    "content": full_system_prompt
                 },
-                {"role": "user", "content": check_prompt},
+                {"role": "user", "content": f"Analysiere die Schülerarbeit und gib Feedback gemäß den Anweisungen."},
             ],
             response_format={"type": "json_object"},
             temperature=0.7

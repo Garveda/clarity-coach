@@ -1,0 +1,12 @@
+{
+  "user_id": "business_user",
+  "domain": "business_clarity",
+  "session_count": 1,
+  "created_at": "2026-02-11T13:19:14.869985",
+  "last_session": "2026-02-11T13:19:19.034211",
+  "business_context": {},
+  "decisions_discussed": [
+    "automation"
+  ],
+  "next_focus": "Understand business core"
+}
